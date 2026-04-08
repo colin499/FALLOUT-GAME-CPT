@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Pip-Boy 3000</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --g:  #5CF54A;
+    --gd: #2a7a1e;
+    --gx: #153d0a;
+    --bg: #020c01;
+    --glow: 0 0 6px #5CF54A99;
+    --glow-strong: 0 0 10px #5CF54A, 0 0 20px #5CF54A55;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  html, body {
+    width:100%; height:100%;
+    background: var(--bg);
+    color: var(--g);
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 14px;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* scanlines */
+  body::after {
+    content:'';
+    position:fixed; inset:0;
+    background: repeating-linear-gradient(
+      to bottom, transparent 0, transparent 3px,
+      rgba(0,0,0,0.13) 3px, rgba(0,0,0,0.13) 4px
+    );
+    pointer-events:none; z-index:999;
+  }
+
+  /* sweep line */
+  body::before {
+    content:'';
+    position:fixed; left:0; width:100%; height:2px;
+    background: rgba(92,245,74,0.07);
+    pointer-events:none; z-index:998;
+    animation: sweep 9s linear infinite;
+  }
+  @keyframes sweep { from{top:-2px} to{top:100vh} }
+  @keyframes flicker { 0%,100%{opacity:1} 93%{opacity:.88} 96%{opacity:.95} }
+  body { animation: flicker 8s infinite; }
+
+  /* ───── HEADER ───── */
+  #hdr {
+    position:fixed; top:0; left:0; right:0; height:48px;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 14px;
+    border-bottom:1px solid var(--gd);
+    background:var(--bg);
+    z-index:200;
+  }
+  #hdr-left { line-height:1.3; }
+  .hdr-title { font-size:16px; letter-spacing:4px; text-shadow:var(--glow-strong); }
+  .hdr-sub   { font-size:9px;  color:var(--gd);   letter-spacing:2px; }
+  #hdr-right { text-align:right; }
+  #clock     { font-size:20px; text-shadow:var(--glow); }
+  #date-disp { font-size:9px; color:var(--gd); letter-spacing:1px; }
+
+  /* ───── TABS ───── */
+  #tabs {
+    position:fixed; top:48px; left:0; right:0; height:40px;
+    display:flex;
+    border-bottom:2px solid var(--g);
+    background:var(--bg);
+    z-index:200;
+  }
+  .tab {
+    flex:1; display:flex; align-items:center; justify-content:center;
+    font-size:12px; letter-spacing:2px; color:var(--gd);
+    border-right:1px solid var(--gx);
+    cursor:pointer;
+  }
+  .tab:last-child { border-right:none; }
+  .tab.on {
+    color:var(--bg); background:var(--g);
+    text-shadow:none; box-shadow:var(--glow);
+  }
+
+  /* ───── CONTENT ───── */
+  #content {
+    position:fixed;
+    top:88px; bottom:0; left:0; right:0;
+    overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:14px 14px 24px;
+  }
+  .panel { display:none; }
+  .panel.on { display:block; }
+
+  /* ───── SHARED ───── */
+  .bracket-label {
+    font-size:10px; letter-spacing:3px; color:var(--gd);
+    margin-bottom:8px; display:flex; align-items:center; gap:6px;
+  }
+  .bracket-label::before { content:'['; color:var(--g); }
+  .bracket-label::after  { content:']'; color:var(--g); }
+  .bracket-label::before,.bracket-label::after { font-size:12px; }
+
+  hr.div { border:none; border-top:1px solid var(--gx); margin:16px 0; }
+
+  /* stat bars */
+  .bar-wrap { margin-bottom:12px; }
+  .bar-top  { display:flex; justify-content:space-between; font-size:12px; letter-spacing:1px; margin-bottom:4px; }
+  .bar-top .lbl { color:var(--gd); }
+  .bar-top .val { color:var(--g); text-shadow:var(--glow); }
+  .bar-track { height:12px; background:var(--gx); border:1px solid var(--gd); border-radius:1px; }
+  .bar-fill  { height:100%; background:var(--g); box-shadow:var(--glow); border-radius:1px; transition:width .4s; }
+  .bar-fill.ap  { background:#00d4ff; box-shadow:0 0 6px #00d4ff88; }
+  .bar-fill.rad { background:#ff9500; box-shadow:0 0 6px #ff950088; }
+  .bar-fill.crit { background:#ff3b3b; box-shadow:0 0 8px #ff3b3b99; }
+
+  /* ───── STAT BODY ───── */
+  .stat-layout {
+    display:flex; gap:12px; align-items:flex-start;
+    margin:12px 0;
+  }
+  .limb-list { flex:1; }
+  .limb-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:5px 0; border-bottom:1px solid var(--gx);
+    font-size:12px; letter-spacing:1px;
+  }
+  .limb-row:last-child { border-bottom:none; }
+  .limb-name { color:var(--gd); }
+  .limb-ok      { color:var(--g); }
+  .limb-damaged { color:#ff9500; }
+  .limb-crippled { color:#ff3b3b; animation:threat-pulse 1.2s infinite; }
+
+  /* ───── SPECIAL ───── */
+  .special-grid {
+    display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:4px;
+  }
+
+  /* ───── INV ───── */
+  .cat-hdr {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 12px; border:1px solid var(--gd); cursor:pointer;
+    font-size:12px; letter-spacing:2px; margin-bottom:2px;
+    background:var(--gx);
+  }
+  .cat-hdr .cnt { color:var(--gd); font-size:10px; }
+  .cat-items { border:1px solid var(--gx); border-top:none; display:none; margin-bottom:6px; }
+  .cat-items.open { display:block; }
+  .inv-row {
+    display:flex; align-items:center; padding:9px 12px;
+    border-bottom:1px solid var(--gx); font-size:12px; gap:8px;
+  }
+  .inv-row:last-child { border-bottom:none; }
+  .inv-name { flex:1; }
+  .inv-qty  { color:var(--gd); font-size:11px; min-width:32px; text-align:right; }
+  .use-btn  {
+    background:transparent; border:1px solid var(--gd); color:var(--g);
+    font-family:inherit; font-size:10px; letter-spacing:1px; padding:4px 8px; cursor:pointer;
+  }
+  .use-btn:active { background:var(--g); color:var(--bg); }
+  .del-btn {
+    color:var(--gd); font-size:16px; cursor:pointer; padding:0 4px; border:1px solid transparent;
+  }
+  .del-btn:active { color:#ff3b3b; border-color:#ff3b3b; }
+
+  /* input / button */
+  .pip-input {
+    background:transparent; border:1px solid var(--gd); color:var(--g);
+    font-family:inherit; font-size:13px; padding:9px 10px; outline:none;
+    letter-spacing:1px; width:100%; border-radius:1px;
+  }
+  .pip-input::placeholder { color:var(--gd); }
+  .pip-input:focus { border-color:var(--g); box-shadow:var(--glow); }
+  select.pip-input option { background:#000; }
+  .pip-btn {
+    background:var(--gd); border:1px solid var(--g); color:var(--bg);
+    font-family:inherit; font-size:12px; letter-spacing:2px;
+    padding:10px 14px; cursor:pointer; white-space:nowrap; border-radius:1px;
+  }
+  .pip-btn:active { background:var(--g); }
+  .pip-btn.danger { background:transparent; border-color:#ff3b3b; color:#ff3b3b; }
+  .pip-btn.danger:active { background:#ff3b3b; color:#000; }
+  .pip-btn.active-btn { background:var(--g); color:var(--bg); box-shadow:var(--glow-strong); }
+
+  .row { display:flex; gap:8px; margin-top:8px; align-items:center; }
+
+  /* ───── QUEST ───── */
+  .quest-card {
+    border:1px solid var(--gd); padding:11px; margin-bottom:7px;
+  }
+  .quest-card.done { opacity:.4; }
+  .q-title { font-size:13px; letter-spacing:1px; margin-bottom:3px; }
+  .q-desc  { font-size:11px; color:var(--gd); line-height:1.5; }
+  .q-btns  { display:flex; gap:7px; margin-top:9px; }
+  .q-btn {
+    background:transparent; border:1px solid var(--gd); color:var(--gd);
+    font-family:inherit; font-size:10px; letter-spacing:1px; padding:5px 10px; cursor:pointer;
+  }
+  .q-btn:active,.q-btn.hi { border-color:var(--g); color:var(--g); }
+
+  /* ───── WORLD ───── */
+  .threat-bar {
+    border:1px solid var(--gd); padding:12px 14px;
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:12px;
+  }
+  .threat-bar.caution { border-color:#ff9500; color:#ff9500; box-shadow:0 0 10px #ff950033; }
+  .threat-bar.danger  { border-color:#ff3b3b; color:#ff3b3b; box-shadow:0 0 14px #ff3b3b55;
+    animation:threat-pulse 1s ease-in-out infinite; }
+  @keyframes threat-pulse { 0%,100%{opacity:1} 50%{opacity:.65} }
+  .thr-label { font-size:11px; letter-spacing:3px; }
+  .thr-val   { font-size:26px; letter-spacing:2px; }
+
+  .flee-row {
+    display:flex; gap:8px; margin-bottom:14px; align-items:center;
+  }
+  .ap-status { font-size:11px; color:var(--gd); letter-spacing:1px; flex:1; }
+
+  .enc-entry {
+    border-bottom:1px solid var(--gx); padding:10px 0; font-size:12px;
+  }
+  .enc-entry:last-child { border-bottom:none; }
+  .enc-time   { font-size:10px; color:var(--gd); letter-spacing:1px; }
+  .enc-enemy  { letter-spacing:1px; margin:2px 0; }
+  .enc-enemy.hostile { color:#ff3b3b; }
+  .enc-enemy.neutral { color:#ff9500; }
+  .enc-enemy.clear   { color:var(--g); }
+  .enc-detail { font-size:11px; color:var(--gd); }
+
+  /* ───── TOAST ───── */
+  #toast {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--bg); border:1px solid var(--g); box-shadow:var(--glow-strong);
+    padding:10px 18px; font-size:12px; letter-spacing:2px;
+    z-index:900; opacity:0; transition:opacity .2s; pointer-events:none;
+    white-space:nowrap;
+  }
+  #toast.show { opacity:1; }
+
+  /* ───── MODAL ───── */
+  .modal {
+    position:fixed; inset:0; background:rgba(0,0,0,.88);
+    z-index:800; display:none; align-items:center; justify-content:center; padding:16px;
+  }
+  .modal.open { display:flex; }
+  .modal-box {
+    background:var(--bg); border:1px solid var(--g); box-shadow:var(--glow-strong);
+    padding:18px; width:100%; max-width:340px;
+  }
+  .modal-title { font-size:13px; letter-spacing:3px; margin-bottom:14px; text-shadow:var(--glow); }
+  .modal-row { margin-bottom:10px; }
+  .modal-row label { font-size:10px; color:var(--gd); letter-spacing:2px; display:block; margin-bottom:5px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="hdr">
+  <div id="hdr-left">
+    <div class="hdr-title">PIP-BOY 3000</div>
+    <div class="hdr-sub">ROBCO INDUSTRIES (TM) MK V</div>
+  </div>
+  <div id="hdr-right">
+    <div id="clock">00:00:00</div>
+    <div id="date-disp">---</div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div id="tabs">
+  <div class="tab on" data-tab="stat">STAT</div>
+  <div class="tab" data-tab="inv">INV</div>
+  <div class="tab" data-tab="data">DATA</div>
+  <div class="tab" data-tab="world">WORLD</div>
+</div>
+
+<!-- CONTENT -->
+<div id="content">
+
+  <!-- ══════ STAT ══════ -->
+  <div class="panel on" id="panel-stat">
+    <div class="bracket-label">STATUS</div>
+
+    <div class="bar-wrap">
+      <div class="bar-top"><span class="lbl">HIT POINTS</span><span class="val" id="hp-val">100/100</span></div>
+      <div class="bar-track"><div class="bar-fill" id="hp-bar"></div></div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-top"><span class="lbl">ACTION POINTS</span><span class="val" id="ap-val">100/100</span></div>
+      <div class="bar-track"><div class="bar-fill ap" id="ap-bar"></div></div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-top"><span class="lbl">RADIATION</span><span class="val" id="rad-val">0 RAD</span></div>
+      <div class="bar-track"><div class="bar-fill rad" id="rad-bar"></div></div>
+    </div>
+
+    <div class="stat-layout">
+      <img src="vaultboy.png" draggable="false" style="
+        width: 110px; flex-shrink:0;
+        filter: invert(1) sepia(1) saturate(6) hue-rotate(65deg) brightness(0.95)
+                drop-shadow(0 0 8px #5CF54A);
+      ">
+      <div class="limb-list" id="limb-list"></div>
+    </div>
+
+  </div>
+
+  <!-- ══════ INV ══════ -->
+  <div class="panel" id="panel-inv">
+    <div class="bracket-label">INVENTORY</div>
+    <div id="inv-cats"></div>
+
+    <hr class="div">
+    <div class="bracket-label">ADD ITEM</div>
+    <input class="pip-input" id="inv-name" placeholder="ITEM NAME" maxlength="40" style="margin-bottom:8px;">
+    <div class="row">
+      <input class="pip-input" id="inv-qty" type="number" placeholder="QTY" min="1" value="1" style="width:80px;flex:none;">
+      <select class="pip-input" id="inv-cat">
+        <option value="WEAPONS">WEAPONS</option>
+        <option value="APPAREL">APPAREL</option>
+        <option value="AID" selected>AID</option>
+        <option value="AMMO">AMMO</option>
+        <option value="MISC">MISC</option>
+      </select>
+      <button class="pip-btn" onclick="addItem()">ADD</button>
+    </div>
+    <div style="margin-top:10px;font-size:10px;color:var(--gd);letter-spacing:1px;line-height:1.6;">
+      AID ITEMS: STIMPAK, RADAWAY, RAD-X, NUKA-COLA, BUFFOUT, MENTATS auto-apply effects when used.
+    </div>
+  </div>
+
+  <!-- ══════ DATA ══════ -->
+  <div class="panel" id="panel-data">
+    <div class="bracket-label">QUESTS</div>
+    <div id="quest-list"></div>
+    <div class="row" style="margin-top:10px;">
+      <input class="pip-input" id="q-name" placeholder="QUEST TITLE" maxlength="50">
+    </div>
+    <div class="row">
+      <input class="pip-input" id="q-desc" placeholder="OBJECTIVE (optional)" maxlength="100">
+      <button class="pip-btn" onclick="addQuest()">ADD</button>
+    </div>
+
+    <hr class="div">
+    <div class="bracket-label">NOTES</div>
+    <textarea class="pip-input" id="notes-ta" rows="6"
+      style="width:100%;resize:none;line-height:1.6;"
+      placeholder="FIELD NOTES..."
+      oninput="saveNotes()"></textarea>
+  </div>
+
+  <!-- ══════ WORLD ══════ -->
+  <div class="panel" id="panel-world">
+    <div class="threat-bar" id="threat-bar">
+      <span class="thr-label">THREAT LEVEL</span>
+      <span class="thr-val" id="thr-val">CLEAR</span>
+    </div>
+
+    <div class="flee-row">
+      <button class="pip-btn danger" id="flee-btn" onclick="toggleFlee()">▶ FLEE</button>
+      <div class="ap-status" id="ap-status-txt">AP NOMINAL</div>
+    </div>
+
+    <div class="row" style="margin-bottom:14px;">
+      <button class="pip-btn" style="flex:1;" onclick="openEncModal()">+ LOG ENCOUNTER</button>
+      <button class="pip-btn danger" onclick="clearEnc()">CLEAR</button>
+    </div>
+
+    <div class="bracket-label">ENCOUNTER LOG</div>
+    <div id="enc-log"></div>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ENCOUNTER MODAL -->
+<div class="modal" id="enc-modal">
+  <div class="modal-box">
+    <div class="modal-title">[ LOG ENCOUNTER ]</div>
+    <div class="modal-row">
+      <label>ENEMY</label>
+      <select class="pip-input" id="m-enemy">
+        <option value="DEATHCLAW">DEATHCLAW</option>
+        <option value="SUPER MUTANT">SUPER MUTANT</option>
+        <option value="RAIDER">RAIDER</option>
+        <option value="GHOUL">GHOUL</option>
+        <option value="RADSCORPION">RADSCORPION</option>
+        <option value="YAO GUAI">YAO GUAI</option>
+        <option value="WILDLIFE">WILDLIFE</option>
+        <option value="SURVIVOR">SURVIVOR</option>
+        <option value="UNKNOWN">UNKNOWN</option>
+      </select>
+    </div>
+    <div class="modal-row">
+      <label>OUTCOME</label>
+      <select class="pip-input" id="m-outcome">
+        <option value="TOOK DAMAGE">TOOK DAMAGE</option>
+        <option value="ESCAPED">ESCAPED</option>
+        <option value="NEUTRALIZED">NEUTRALIZED</option>
+        <option value="EVADED">EVADED</option>
+      </select>
+    </div>
+    <div class="modal-row">
+      <label>LOCATION / NOTES</label>
+      <input class="pip-input" id="m-note" placeholder="OPTIONAL..." maxlength="80">
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <button class="pip-btn" style="flex:1;" onclick="logEncounter()">CONFIRM</button>
+      <button class="pip-btn danger" style="flex:1;" onclick="closeModal()">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// CONFIGURATION
+// ─────────────────────────────────────────────
+
+const LIMB_DEFS = [
+  {id:'head',  label:'HEAD',   svgId:'limb-head'},
+  {id:'torso', label:'TORSO',  svgId:'limb-torso'},
+  {id:'larm',  label:'L. ARM', svgId:'limb-larm'},
+  {id:'rarm',  label:'R. ARM', svgId:'limb-rarm'},
+  {id:'lleg',  label:'L. LEG', svgId:'limb-lleg'},
+  {id:'rleg',  label:'R. LEG', svgId:'limb-rleg'},
+];
+
+// Damage taken per enemy when outcome = TOOK DAMAGE
+const ENEMY_DAMAGE = {
+  'DEATHCLAW':    { hp:-40, rad:5,  limb:true },
+  'SUPER MUTANT': { hp:-25, rad:0,  limb:true },
+  'RADSCORPION':  { hp:-20, rad:20, limb:false },
+  'YAO GUAI':     { hp:-18, rad:0,  limb:false },
+  'RAIDER':       { hp:-15, rad:0,  limb:false },
+  'GHOUL':        { hp:-12, rad:10, limb:false },
+  'WILDLIFE':     { hp:-8,  rad:0,  limb:false },
+  'SURVIVOR':     { hp:-10, rad:0,  limb:false },
+  'UNKNOWN':      { hp:-20, rad:0,  limb:false },
+};
+// AP cost when outcome = ESCAPED
+const ENEMY_ESCAPE_AP = {
+  'DEATHCLAW':45, 'SUPER MUTANT':30, 'RADSCORPION':25,
+  'YAO GUAI':22, 'RAIDER':18, 'GHOUL':15,
+  'WILDLIFE':10, 'SURVIVOR':8, 'UNKNOWN':20,
+};
+// Known Aid item effects (matched by name substring)
+const AID_EFFECTS = [
+  { match:'STIMPAK',    hp:+25,            msg:'HP +25' },
+  { match:'STIMPACK',   hp:+25,            msg:'HP +25' },
+  { match:'RADAWAY',    rad:-100,          msg:'RAD -100' },
+  { match:'RAD-X',      radRes:true,       msg:'RAD RESISTANCE +30' },
+  { match:'NUKA-COLA',  hp:+5,  ap:+15,   msg:'HP +5  AP +15' },
+  { match:'NUKA COLA',  hp:+5,  ap:+15,   msg:'HP +5  AP +15' },
+  { match:'BUFFOUT',    hp:+30,            msg:'HP +30' },
+  { match:'MENTATS',    ap:+35,            msg:'AP +35' },
+  { match:'FOOD',       hp:+8,             msg:'HP +8' },
+  { match:'MEAT',       hp:+8,             msg:'HP +8' },
+  { match:'PURIFIED',   hp:+3, rad:-15,   msg:'HP +3  RAD -15' },
+  { match:'WATER',      hp:+3, rad:-10,   msg:'HP +3  RAD -10' },
+  { match:'BERRY',      hp:+5,             msg:'HP +5' },
+  { match:"DOCTOR'S BAG", limb:true,       msg:'LIMBS HEALED' },
+  { match:'DOCTORS BAG',  limb:true,       msg:'LIMBS HEALED' },
+];
+const GENERIC_AID_HP = 10; // fallback
+
+// AP regen / drain rates (per second)
+const AP_REGEN = 4;
+const AP_DRAIN = 9;
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+const SK = 'pipboy_v2';
+
+function defaultState() {
+  return {
+    hp:  { cur:100, max:100 },
+    ap:  { cur:100, max:100 },
+    rad: { cur:0,   max:1000 },
+    limbs: { head:'OK', torso:'OK', larm:'OK', rarm:'OK', lleg:'OK', rleg:'OK' },
+    special: { S:5, P:5, E:5, C:5, I:5, A:5, L:5 },
+    inventory: { WEAPONS:[], APPAREL:[], AID:[], AMMO:[], MISC:[] },
+    quests: [],
+    notes: '',
+    encounters: [],
+  };
+}
+
+let S = (() => {
+  try {
+    const s = localStorage.getItem(SK);
+    if (s) return Object.assign(defaultState(), JSON.parse(s));
+  } catch(e){}
+  return defaultState();
+})();
+
+function save() { localStorage.setItem(SK, JSON.stringify(S)); }
+
+// ─────────────────────────────────────────────
+// AUDIO
+// ─────────────────────────────────────────────
+let actx = null;
+function ac() { if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+
+function tick() {
+  const c=ac(), t=c.currentTime;
+  const b=c.createBuffer(1,c.sampleRate*.03,c.sampleRate);
+  const d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+  const s=c.createBufferSource(); s.buffer=b;
+  const f=c.createBiquadFilter(); f.type='bandpass'; f.frequency.value=1500; f.Q.value=1.5;
+  const g=c.createGain(); g.gain.setValueAtTime(.18,t); g.gain.exponentialRampToValueAtTime(.001,t+.03);
+  s.connect(f); f.connect(g); g.connect(c.destination); s.start(t); s.stop(t+.03);
+}
+
+function alert3() {
+  const c=ac(), t=c.currentTime;
+  [380,560,760].forEach((f,i)=>{
+    const o=c.createOscillator(); o.type='square'; o.frequency.value=f;
+    const g=c.createGain();
+    g.gain.setValueAtTime(0,t+i*.13);
+    g.gain.linearRampToValueAtTime(.15,t+i*.13+.01);
+    g.gain.exponentialRampToValueAtTime(.001,t+i*.13+.11);
+    o.connect(g); g.connect(c.destination); o.start(t+i*.13); o.stop(t+i*.13+.12);
+  });
+}
+
+function healBeep() {
+  const c=ac(), t=c.currentTime;
+  [600,900].forEach((f,i)=>{
+    const o=c.createOscillator(); o.type='sine'; o.frequency.value=f;
+    const g=c.createGain();
+    g.gain.setValueAtTime(0,t+i*.08);
+    g.gain.linearRampToValueAtTime(.12,t+i*.08+.01);
+    g.gain.exponentialRampToValueAtTime(.001,t+i*.08+.12);
+    o.connect(g); g.connect(c.destination); o.start(t+i*.08); o.stop(t+i*.08+.12);
+  });
+}
+
+// ─────────────────────────────────────────────
+// CLOCK
+// ─────────────────────────────────────────────
+function updateClock() {
+  const n=new Date();
+  document.getElementById('clock').textContent =
+    [n.getHours(),n.getMinutes(),n.getSeconds()].map(v=>String(v).padStart(2,'0')).join(':');
+  document.getElementById('date-disp').textContent =
+    n.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}).toUpperCase();
+}
+setInterval(updateClock,1000); updateClock();
+
+// ─────────────────────────────────────────────
+// TABS
+// ─────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');
+    document.getElementById('panel-'+t.dataset.tab).classList.add('on');
+    tick();
+  });
+});
+
+// ─────────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────────
+let toastTimer = null;
+function toast(msg, color) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = color||'var(--g)';
+  el.style.color = color||'var(--g)';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2800);
+}
+
+// ─────────────────────────────────────────────
+// STAT RENDERING
+// ─────────────────────────────────────────────
+const LIMB_COLORS = { OK:'#5CF54A', DAMAGED:'#ff9500', CRIPPLED:'#ff3b3b' };
+
+function renderStats() {
+  // HP
+  const hpPct = Math.max(0, S.hp.cur/S.hp.max*100);
+  document.getElementById('hp-val').textContent = `${S.hp.cur}/${S.hp.max}`;
+  const hpBar = document.getElementById('hp-bar');
+  hpBar.style.width = hpPct+'%';
+  hpBar.className = 'bar-fill' + (hpPct<25?' crit':'');
+
+  // AP
+  const apPct = Math.max(0, S.ap.cur/S.ap.max*100);
+  document.getElementById('ap-val').textContent = `${S.ap.cur}/${S.ap.max}`;
+  document.getElementById('ap-bar').style.width = apPct+'%';
+  document.getElementById('ap-status-txt').textContent =
+    isFleeing ? `FLEEING — AP DRAINING` : (apPct<30 ? 'AP LOW — REST' : 'AP NOMINAL');
+
+  // RAD
+  const radPct = Math.min(100, S.rad.cur/S.rad.max*100);
+  document.getElementById('rad-val').textContent = `${S.rad.cur} RAD`;
+  document.getElementById('rad-bar').style.width = radPct+'%';
+
+  // Limbs
+  const ll = document.getElementById('limb-list');
+  ll.innerHTML = LIMB_DEFS.map(({id,label})=>{
+    const status = S.limbs[id]||'OK';
+    const cls = status==='OK'?'limb-ok':status==='DAMAGED'?'limb-damaged':'limb-crippled';
+    return `<div class="limb-row">
+      <span class="limb-name">${label}</span>
+      <span class="${cls}">${status}</span>
+    </div>`;
+  }).join('');
+}
+
+
+// ─────────────────────────────────────────────
+// HP / AP / RAD modifiers
+// ─────────────────────────────────────────────
+function modHP(delta) {
+  S.hp.cur = Math.max(0, Math.min(S.hp.max, S.hp.cur + delta));
+  save(); renderStats();
+}
+function modAP(delta) {
+  S.ap.cur = Math.max(0, Math.min(S.ap.max, S.ap.cur + delta));
+  save(); renderStats();
+}
+function modRAD(delta) {
+  S.rad.cur = Math.max(0, Math.min(S.rad.max, S.rad.cur + delta));
+  save(); renderStats();
+}
+function damageLimb() {
+  const limbs = Object.keys(S.limbs);
+  const ok = limbs.filter(l => S.limbs[l]==='OK');
+  const dmg = limbs.filter(l => S.limbs[l]==='DAMAGED');
+  if(ok.length) {
+    const pick = ok[Math.floor(Math.random()*ok.length)];
+    S.limbs[pick] = 'DAMAGED';
+  } else if(dmg.length) {
+    const pick = dmg[Math.floor(Math.random()*dmg.length)];
+    S.limbs[pick] = 'CRIPPLED';
+  }
+  save(); renderStats();
+}
+function healLimbs() {
+  Object.keys(S.limbs).forEach(l=>S.limbs[l]='OK');
+  save(); renderStats();
+}
+
+// ─────────────────────────────────────────────
+// AP REGEN TIMER
+// ─────────────────────────────────────────────
+let isFleeing = false;
+
+setInterval(()=>{
+  if(isFleeing){
+    if(S.ap.cur>0){
+      modAP(-AP_DRAIN);
+    } else {
+      // exhausted
+      isFleeing=false;
+      updateFleeBtn();
+      toast('EXHAUSTED — CANNOT FLEE', '#ff3b3b');
+    }
+  } else {
+    if(S.ap.cur < S.ap.max) modAP(+AP_REGEN);
+  }
+}, 1000);
+
+function toggleFlee(){
+  isFleeing = !isFleeing;
+  if(isFleeing) alert3();
+  else tick();
+  updateFleeBtn();
+  renderStats();
+}
+function updateFleeBtn(){
+  const btn = document.getElementById('flee-btn');
+  if(isFleeing){
+    btn.textContent='■ STOP FLEEING';
+    btn.classList.add('active-btn');
+    btn.classList.remove('danger');
+  } else {
+    btn.textContent='▶ FLEE';
+    btn.classList.remove('active-btn');
+    btn.classList.add('danger');
+  }
+}
+
+// ─────────────────────────────────────────────
+// INV
+// ─────────────────────────────────────────────
+function renderInv(){
+  const c = document.getElementById('inv-cats');
+  c.innerHTML = '';
+  Object.keys(S.inventory).forEach(cat=>{
+    const items = S.inventory[cat]||[];
+    const isAid = cat==='AID';
+    const el = document.createElement('div');
+    el.innerHTML = `
+      <div class="cat-hdr" onclick="toggleCat('${cat}')">
+        <span>${cat}</span><span class="cnt">${items.length}</span>
+      </div>
+      <div class="cat-items" id="ci-${cat}">
+        ${items.length===0
+          ? '<div class="inv-row" style="color:var(--gd);font-size:11px;">EMPTY</div>'
+          : items.map((item,i)=>`
+            <div class="inv-row">
+              <span class="inv-name">${item.name}</span>
+              <span class="inv-qty">x${item.qty}</span>
+              ${isAid ? `<button class="use-btn" onclick="useItem('${cat}',${i})">USE</button>` : ''}
+              <span class="del-btn" onclick="removeItem('${cat}',${i})">×</span>
+            </div>
+          `).join('')}
+      </div>
+    `;
+    c.appendChild(el);
+  });
+}
+
+function toggleCat(cat){
+  tick();
+  document.getElementById('ci-'+cat).classList.toggle('open');
+}
+function addItem(){
+  const name = document.getElementById('inv-name').value.trim().toUpperCase();
+  const qty  = parseInt(document.getElementById('inv-qty').value)||1;
+  const cat  = document.getElementById('inv-cat').value;
+  if(!name) return;
+  S.inventory[cat].push({name,qty});
+  document.getElementById('inv-name').value='';
+  document.getElementById('inv-qty').value='1';
+  save(); renderInv(); tick();
+  document.getElementById('ci-'+cat).classList.add('open');
+}
+function removeItem(cat,i){ tick(); S.inventory[cat].splice(i,1); save(); renderInv(); }
+
+function useItem(cat, i){
+  const item = S.inventory[cat][i];
+  if(!item) return;
+
+  // find effect
+  let effect = null;
+  const n = item.name.toUpperCase();
+  for(const e of AID_EFFECTS){
+    if(n.includes(e.match.toUpperCase())){ effect=e; break; }
+  }
+
+  let msg = '';
+  if(effect){
+    if(effect.hp)   modHP(effect.hp);
+    if(effect.ap)   modAP(effect.ap);
+    if(effect.rad)  modRAD(effect.rad);
+    if(effect.limb) healLimbs();
+    msg = effect.msg;
+  } else {
+    modHP(GENERIC_AID_HP);
+    msg = `HP +${GENERIC_AID_HP}`;
+  }
+
+  // reduce qty
+  if(item.qty > 1) item.qty--;
+  else S.inventory[cat].splice(i,1);
+
+  save(); renderInv(); renderStats();
+  healBeep();
+  toast(item.name+' — '+msg, '#5CF54A');
+}
+
+// ─────────────────────────────────────────────
+// QUESTS / NOTES
+// ─────────────────────────────────────────────
+function renderQuests(){
+  const el = document.getElementById('quest-list');
+  if(!S.quests.length){
+    el.innerHTML='<div style="color:var(--gd);font-size:12px;padding:6px 0;">NO ACTIVE QUESTS</div>';
+    return;
+  }
+  el.innerHTML = S.quests.map((q,i)=>`
+    <div class="quest-card ${q.done?'done':''}">
+      <div class="q-title">${q.done?'[✓] ':''}${q.name}</div>
+      ${q.desc?`<div class="q-desc">${q.desc}</div>`:''}
+      <div class="q-btns">
+        <button class="q-btn ${q.done?'hi':''}" onclick="toggleQ(${i})">${q.done?'REOPEN':'COMPLETE'}</button>
+        <button class="q-btn" onclick="removeQ(${i})">REMOVE</button>
+      </div>
+    </div>
+  `).join('');
+}
+function addQuest(){
+  const n=document.getElementById('q-name').value.trim().toUpperCase();
+  const d=document.getElementById('q-desc').value.trim();
+  if(!n) return;
+  S.quests.push({name:n,desc:d,done:false});
+  document.getElementById('q-name').value='';
+  document.getElementById('q-desc').value='';
+  save(); renderQuests(); tick();
+}
+function toggleQ(i){ tick(); S.quests[i].done=!S.quests[i].done; save(); renderQuests(); }
+function removeQ(i){ tick(); S.quests.splice(i,1); save(); renderQuests(); }
+function saveNotes(){ S.notes=document.getElementById('notes-ta').value; save(); }
+
+// ─────────────────────────────────────────────
+// ENCOUNTERS / WORLD
+// ─────────────────────────────────────────────
+const THREAT_ENEMIES = new Set(['DEATHCLAW','SUPER MUTANT','RAIDER','GHOUL','RADSCORPION','YAO GUAI','UNKNOWN']);
+
+function updateThreat(){
+  const last = S.encounters[0];
+  const bar  = document.getElementById('threat-bar');
+  const val  = document.getElementById('thr-val');
+  if(!last || last.outcome==='NEUTRALIZED' || last.outcome==='EVADED'){
+    bar.className='threat-bar'; val.textContent='CLEAR';
+  } else if(THREAT_ENEMIES.has(last.enemy)){
+    if(last.outcome==='ESCAPED'){ bar.className='threat-bar caution'; val.textContent='CAUTION'; }
+    else { bar.className='threat-bar danger'; val.textContent='DANGER'; }
+  } else {
+    bar.className='threat-bar'; val.textContent='CLEAR';
+  }
+}
+
+function renderWorld(){
+  updateThreat();
+  const log = document.getElementById('enc-log');
+  if(!S.encounters.length){
+    log.innerHTML='<div class="enc-detail" style="padding:8px 0;">NO ENCOUNTERS LOGGED</div>';
+    return;
+  }
+  log.innerHTML = S.encounters.map(enc=>`
+    <div class="enc-entry">
+      <div class="enc-time">${enc.time}</div>
+      <div class="enc-enemy ${THREAT_ENEMIES.has(enc.enemy)?'hostile':'neutral'}">${enc.enemy}</div>
+      <div class="enc-detail">OUTCOME: ${enc.outcome}${enc.note?' — '+enc.note:''}</div>
+      ${enc.statMsg?`<div class="enc-detail" style="color:var(--g);">${enc.statMsg}</div>`:''}
+    </div>
+  `).join('');
+}
+
+function openEncModal(){ document.getElementById('enc-modal').classList.add('open'); }
+function closeModal()  { document.getElementById('enc-modal').classList.remove('open'); }
+
+function logEncounter(){
+  const enemy   = document.getElementById('m-enemy').value;
+  const outcome = document.getElementById('m-outcome').value;
+  const note    = document.getElementById('m-note').value.trim().toUpperCase();
+  document.getElementById('m-note').value='';
+
+  const effects = ENEMY_DAMAGE[enemy]||{hp:-15,rad:0,limb:false};
+  let statMsg = '';
+
+  if(outcome==='TOOK DAMAGE'){
+    modHP(effects.hp);
+    if(effects.rad) modRAD(effects.rad);
+    if(effects.limb) damageLimb();
+    statMsg = `HP ${effects.hp}${effects.rad?' RAD +'+effects.rad:''}`;
+    alert3();
+    toast(`${enemy} ENCOUNTER — ${effects.hp} HP`, '#ff3b3b');
+  } else if(outcome==='ESCAPED'){
+    const cost = ENEMY_ESCAPE_AP[enemy]||20;
+    modAP(-cost);
+    statMsg = `AP -${cost}`;
+    tick();
+    toast(`ESCAPED — AP -${cost}`, '#ff9500');
+  } else if(outcome==='NEUTRALIZED'){
+    modAP(-10);
+    statMsg = 'AP -10';
+    tick();
+    toast(`${enemy} NEUTRALIZED`, '#5CF54A');
+  } else {
+    modAP(-5);
+    statMsg = 'AP -5';
+    tick();
+    toast('EVADED', '#5CF54A');
+  }
+
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} ${now.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`.toUpperCase();
+  S.encounters.unshift({enemy,outcome,note,statMsg,time});
+  if(S.encounters.length>40) S.encounters.pop();
+
+  save(); closeModal(); renderWorld();
+}
+
+function clearEnc(){ tick(); S.encounters=[]; save(); renderWorld(); }
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+function init(){
+  renderStats();
+  renderInv();
+  renderQuests();
+  renderWorld();
+  document.getElementById('notes-ta').value = S.notes||'';
+}
+init();
+</script>
+</body>
+</html>

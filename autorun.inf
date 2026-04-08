@@ -1,0 +1,5 @@
+[autorun]
+open=launch.bat
+action=Open PAU Holotape
+label=PAU HOLOTAPE
+icon=launch.bat
