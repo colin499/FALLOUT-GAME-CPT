@@ -1397,7 +1397,6 @@ function hostileTick() {
 function resolveHostile(outcome) {
   encounterOver = true;
   clearInterval(hostileTimer);
-  stopSuspenseMusic();
 
   const enemy = activeHostile;
   let statMsg = '';
@@ -1589,6 +1588,16 @@ function loadHolotape(event) {
 // ─────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────
+// Start music on first user interaction (browser autoplay policy)
+let musicStarted = false;
+function startMusicOnce() {
+  if (musicStarted) return;
+  musicStarted = true;
+  startSuspenseMusic();
+}
+document.addEventListener('touchstart', startMusicOnce, { once: true });
+document.addEventListener('click',      startMusicOnce, { once: true });
+
 function init(){
   renderStats();
   renderInv();
