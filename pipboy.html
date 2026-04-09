@@ -273,11 +273,21 @@
     text-shadow:0 0 10px #ff3b3b; margin-bottom:8px;
     animation: threat-pulse .6s ease-in-out infinite;
   }
+
+  /* enemy image */
+  .ho-enemy-img {
+    width: 140px; height: 140px; object-fit: contain;
+    margin-bottom: 10px;
+    filter: sepia(1) saturate(4) hue-rotate(310deg) brightness(0.85)
+            drop-shadow(0 0 12px #ff3b3b);
+    animation: threat-pulse 2s ease-in-out infinite;
+  }
+
   .ho-enemy {
     font-size:28px; letter-spacing:3px; color:#ff3b3b;
     text-shadow:0 0 16px #ff3b3b; margin-bottom:6px; line-height:1.2;
   }
-  .ho-sub { font-size:11px; color:var(--gd); letter-spacing:2px; margin-bottom:24px; }
+  .ho-sub { font-size:11px; color:var(--gd); letter-spacing:2px; margin-bottom:12px; }
 
   .ho-countdown {
     font-size:72px; line-height:1; color:#ff3b3b;
@@ -496,6 +506,7 @@
 <!-- HOSTILE ENCOUNTER OVERLAY -->
 <div id="hostile-overlay">
   <div class="ho-warning">⚠ HOSTILE DETECTED ⚠</div>
+  <img id="ho-enemy-img" class="ho-enemy-img" src="" alt="" style="display:none;" draggable="false">
   <div class="ho-enemy" id="ho-enemy-name">DEATHCLAW</div>
   <div class="ho-sub" id="ho-enemy-sub">THREAT LEVEL: CRITICAL</div>
   <div class="ho-countdown" id="ho-countdown">30</div>
@@ -692,6 +703,105 @@ function healBeep() {
     g.gain.exponentialRampToValueAtTime(.001,t+i*.08+.12);
     o.connect(g); g.connect(c.destination); o.start(t+i*.08); o.stop(t+i*.08+.12);
   });
+}
+
+// ─────────────────────────────────────────────
+// SUSPENSE MUSIC
+// ─────────────────────────────────────────────
+let musicNodes = [];
+
+function startSuspenseMusic() {
+  const c = ac();
+  stopSuspenseMusic();
+
+  // Low drone — ominous bass rumble
+  const droneOsc = c.createOscillator();
+  droneOsc.type = 'sawtooth';
+  droneOsc.frequency.value = 55;
+  const droneGain = c.createGain();
+  droneGain.gain.value = 0.06;
+  const droneFilter = c.createBiquadFilter();
+  droneFilter.type = 'lowpass';
+  droneFilter.frequency.value = 180;
+  droneOsc.connect(droneFilter);
+  droneFilter.connect(droneGain);
+  droneGain.connect(c.destination);
+  droneOsc.start();
+
+  // Pulse LFO on the drone for tension
+  const lfo = c.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.9;
+  const lfoGain = c.createGain();
+  lfoGain.gain.value = 0.04;
+  lfo.connect(lfoGain);
+  lfoGain.connect(droneGain.gain);
+  lfo.start();
+
+  // Mid tension string-like layer
+  const strOsc = c.createOscillator();
+  strOsc.type = 'sawtooth';
+  strOsc.frequency.value = 110;
+  const strFilter = c.createBiquadFilter();
+  strFilter.type = 'bandpass';
+  strFilter.frequency.value = 400;
+  strFilter.Q.value = 2;
+  const strGain = c.createGain();
+  strGain.gain.value = 0.03;
+  strOsc.connect(strFilter);
+  strFilter.connect(strGain);
+  strGain.connect(c.destination);
+  strOsc.start();
+
+  // High shimmer — eerie upper tone
+  const shimOsc = c.createOscillator();
+  shimOsc.type = 'sine';
+  shimOsc.frequency.value = 660;
+  const shimGain = c.createGain();
+  shimGain.gain.value = 0.015;
+  // slow tremolo on shimmer
+  const shimLfo = c.createOscillator();
+  shimLfo.frequency.value = 3.5;
+  const shimLfoGain = c.createGain();
+  shimLfoGain.gain.value = 0.012;
+  shimLfo.connect(shimLfoGain);
+  shimLfoGain.connect(shimGain.gain);
+  shimOsc.connect(shimGain);
+  shimGain.connect(c.destination);
+  shimOsc.start();
+  shimLfo.start();
+
+  // Irregular heartbeat-like low thud
+  function schedThud() {
+    if (!musicNodes.length) return;
+    const t = c.currentTime;
+    const buf = c.createBuffer(1, c.sampleRate * 0.15, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource(); src.buffer = buf;
+    const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=80;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    src.connect(lp); lp.connect(g); g.connect(c.destination);
+    src.start(t); src.stop(t + 0.15);
+    // slightly randomized interval for unease
+    const next = 600 + Math.random() * 500;
+    const tid = setTimeout(schedThud, next);
+    musicNodes.push({ stop: ()=> clearTimeout(tid) });
+  }
+  schedThud();
+
+  musicNodes.push(
+    { stop: ()=>{ droneOsc.stop(); lfo.stop(); } },
+    { stop: ()=>{ strOsc.stop(); } },
+    { stop: ()=>{ shimOsc.stop(); shimLfo.stop(); } },
+  );
+}
+
+function stopSuspenseMusic() {
+  musicNodes.forEach(n => { try { n.stop(); } catch(e){} });
+  musicNodes = [];
 }
 
 // ─────────────────────────────────────────────
@@ -1074,6 +1184,12 @@ const FRIENDLY_ROSTER = [
   },
 ];
 
+// Enemy images — add more filenames here as you get them
+const ENEMY_IMAGES = {
+  'DEATHCLAW':              'DEATHCLAWPNG.jpeg',
+  'RAIDER':                 'RAIDER IMG.webp',
+};
+
 // Weapon damage + durability (uses before destroyed)
 const WEAPON_STATS = {
   'ROCKET LAUNCHER': { damage:55, uses:1 },
@@ -1176,9 +1292,20 @@ function triggerHostile() {
   document.getElementById('ho-run-label').textContent  = motionEnabled
     ? 'RUN TO ESCAPE' : 'MOTION DISABLED — FLEE MANUALLY';
 
+  // Show enemy image if we have one
+  const imgEl = document.getElementById('ho-enemy-img');
+  const imgSrc = ENEMY_IMAGES[activeHostile.name];
+  if (imgSrc) {
+    imgEl.src = imgSrc;
+    imgEl.style.display = 'block';
+  } else {
+    imgEl.style.display = 'none';
+  }
+
   renderWeaponButtons();
   document.getElementById('hostile-overlay').classList.add('open');
   alert3();
+  startSuspenseMusic();
   logToEncounters(activeHostile.name, 'ONGOING', '', '');
 
   // Countdown tick
@@ -1270,6 +1397,7 @@ function hostileTick() {
 function resolveHostile(outcome) {
   encounterOver = true;
   clearInterval(hostileTimer);
+  stopSuspenseMusic();
 
   const enemy = activeHostile;
   let statMsg = '';
