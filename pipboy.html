@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Pip-Boy 3000</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
@@ -140,19 +141,21 @@
 
   /* ───── MAP ───── */
   #panel-map.on { display:flex; flex-direction:column; gap:10px; }
-  #map-wrap  { position:relative; margin:0 -14px; overflow:hidden; touch-action:none; cursor:grab; }
-  #map-inner { position:relative; transform-origin:0 0; will-change:transform; }
-  #map-img   { width:100%; display:block; }
-  #map-canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
+  #map-leaflet {
+    width: calc(100% + 28px); height: 460px; margin: 0 -14px;
+    filter: invert(1) sepia(1) saturate(3) hue-rotate(65deg) brightness(0.65);
+    border-top:1px solid var(--g); border-bottom:1px solid var(--g);
+  }
   #map-controls { display:flex; flex-direction:column; gap:6px; }
   #map-status { font-size:10px; color:var(--gd); letter-spacing:1px; }
-  .pin-popup {
-    position:absolute; background:var(--bg); border:1px solid var(--g);
-    padding:10px 12px; font-size:11px; letter-spacing:1px;
-    z-index:50; min-width:150px; box-shadow: var(--glow);
-  }
-  .pin-popup-name { margin-bottom:8px; color:var(--g); }
   #map-pin-mode-btn.placing { color:#ff9500; border-color:#ff9500; }
+  .leaflet-container { background:#000; }
+  .pip-pin-label {
+    color:#5CF54A; font-family:monospace; font-size:12px; font-weight:bold;
+    white-space:nowrap; text-shadow:0 0 6px #5CF54A;
+    background:rgba(0,0,0,0.7); padding:2px 5px; border:1px solid #5CF54A;
+  }
+  .pip-pin-label.found { color:#2a7a1e; border-color:#2a7a1e; text-shadow:none; }
 
   /* ───── SPECIAL ───── */
   .special-grid {
@@ -525,19 +528,13 @@
 
   <!-- ══════ MAP ══════ -->
   <div class="panel" id="panel-map">
-    <div id="map-wrap">
-      <div id="map-inner">
-        <img id="map-img" src="map.jpg" draggable="false">
-        <canvas id="map-canvas"></canvas>
-      </div>
-    </div>
+    <div id="map-leaflet"></div>
     <div id="map-controls">
       <div class="row" style="gap:8px;">
         <button class="pip-btn" id="map-pin-mode-btn" style="flex:1;" onclick="togglePinMode()">[ PLACE HOLOTAPE ]</button>
-        <button class="pip-btn" onclick="startMapGPS()" style="flex:none;">GPS ON</button>
         <button class="pip-btn danger" onclick="clearAllPins()" style="flex:none;">CLEAR ALL</button>
       </div>
-      <div id="map-status">GPS: TAP "GPS ON" TO START</div>
+      <div id="map-status">GPS: ACQUIRING...</div>
     </div>
   </div>
 
@@ -1690,27 +1687,15 @@ function loadHolotape(event) {
 }
 
 // ─────────────────────────────────────────────
-// MAP
+// MAP (Leaflet)
 // ─────────────────────────────────────────────
-// GPS bounding box for map.jpg (Prospect Park area).
-// To calibrate: open Google Maps, right-click the exact top-left and
-// bottom-right corners of your screenshot and paste the coordinates here.
-const MAP_BOUNDS = {
-  north: 40.7730,   // latitude of top edge
-  south: 40.7500,   // latitude of bottom edge
-  west:  -73.9400,  // longitude of left edge
-  east:  -73.9050,  // longitude of right edge
-};
-const MAP_IMG_W = 2406;
-const MAP_IMG_H = 1617;
-const HOLOTAPE_DETECT_M = 40; // meters to trigger "signal detected"
+const HOLOTAPE_DETECT_M = 40;
 
-let mapGPS = null;
 let mapPinMode = false;
-let mapPins = [];
-let mapWatchId = null;
-let mapPopupEl = null;
-let mapDotOn = true;
+let mapPins    = [];
+let leafletMap = null;
+let userMarker = null;
+let pinMarkers = {};   // id -> leaflet marker
 
 function loadMapPins() {
   try { mapPins = JSON.parse(localStorage.getItem('map_pins') || '[]'); } catch(e){ mapPins=[]; }
@@ -1719,16 +1704,6 @@ function saveMapPins() {
   localStorage.setItem('map_pins', JSON.stringify(mapPins));
 }
 
-function gpsToCanvas(lat, lng) {
-  const x = (lng - MAP_BOUNDS.west)  / (MAP_BOUNDS.east  - MAP_BOUNDS.west)  * MAP_IMG_W;
-  const y = (MAP_BOUNDS.north - lat) / (MAP_BOUNDS.north - MAP_BOUNDS.south) * MAP_IMG_H;
-  return { x, y };
-}
-function canvasToGPS(cx, cy) {
-  const lng = MAP_BOUNDS.west  + (cx / MAP_IMG_W) * (MAP_BOUNDS.east  - MAP_BOUNDS.west);
-  const lat = MAP_BOUNDS.north - (cy / MAP_IMG_H) * (MAP_BOUNDS.north - MAP_BOUNDS.south);
-  return { lat, lng };
-}
 function haversineM(lat1, lng1, lat2, lng2) {
   const R = 6371000, r = Math.PI/180;
   const dLat = (lat2-lat1)*r, dLng = (lng2-lng1)*r;
@@ -1736,96 +1711,81 @@ function haversineM(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-function drawMap() {
-  const canvas = document.getElementById('map-canvas');
-  if (!canvas || !canvas.offsetParent) return;
-  const img = document.getElementById('map-img');
-  canvas.width  = MAP_IMG_W;
-  canvas.height = MAP_IMG_H;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Pins
-  mapPins.forEach(pin => {
-    const p = gpsToCanvas(pin.lat, pin.lng);
-    const color = pin.found ? '#2a7a1e' : '#5CF54A';
-    // Diamond
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(p.x,      p.y - 22);
-    ctx.lineTo(p.x + 14, p.y);
-    ctx.lineTo(p.x,      p.y + 8);
-    ctx.lineTo(p.x - 14, p.y);
-    ctx.closePath();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    ctx.fillStyle = pin.found ? '#091205' : '#0d1f09';
-    ctx.fill();
-    // Label
-    ctx.font = 'bold 28px monospace';
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = pin.found ? 0 : 12;
-    ctx.fillText(pin.name, p.x + 18, p.y + 8);
-    ctx.restore();
+function makePinIcon(pin) {
+  return L.divIcon({
+    html: `<div class="pip-pin-label${pin.found?' found':''}">◆ ${pin.name}</div>`,
+    className: '',
+    iconAnchor: [0, 12],
   });
-
-  // GPS dot
-  if (mapGPS && mapDotOn) {
-    const p = gpsToCanvas(mapGPS.lat, mapGPS.lng);
-    ctx.save();
-    // Outer ring
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 18, 0, Math.PI*2);
-    ctx.strokeStyle = 'rgba(92,245,74,0.35)';
-    ctx.lineWidth = 5;
-    ctx.stroke();
-    // Dot
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 9, 0, Math.PI*2);
-    ctx.fillStyle = '#5CF54A';
-    ctx.shadowColor = '#5CF54A';
-    ctx.shadowBlur = 24;
-    ctx.fill();
-    ctx.restore();
-  }
 }
 
-// Blink the GPS dot
-setInterval(() => {
-  mapDotOn = !mapDotOn;
-  drawMap();
-}, 700);
-
-function startMapGPS() {
-  if (mapWatchId !== null) return;
-  if (!navigator.geolocation) {
-    document.getElementById('map-status').textContent = 'GPS: NOT SUPPORTED';
-    return;
-  }
-  document.getElementById('map-status').textContent = 'GPS: ACQUIRING SIGNAL...';
-  mapWatchId = navigator.geolocation.watchPosition(
-    pos => {
-      mapGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      const acc = Math.round(pos.coords.accuracy);
-      document.getElementById('map-status').textContent =
-        `GPS: LOCKED  ±${acc}m`;
-      drawMap();
-      checkHolotapeProximity();
-    },
-    err => {
-      document.getElementById('map-status').textContent = 'GPS: ' + err.message.toUpperCase();
-    },
-    { enableHighAccuracy: true, maximumAge: 4000, timeout: 15000 }
-  );
+function addLeafletPin(pin) {
+  if (!leafletMap) return;
+  const marker = L.marker([pin.lat, pin.lng], { icon: makePinIcon(pin) }).addTo(leafletMap);
+  marker.on('click', function(e) {
+    L.DomEvent.stopPropagation(e);
+    showLeafletPinPopup(pin, marker);
+  });
+  pinMarkers[pin.id] = marker;
 }
 
-function checkHolotapeProximity() {
-  if (!mapGPS) return;
+function showLeafletPinPopup(pin, marker) {
+  const content = `
+    <div style="font-family:monospace;font-size:12px;letter-spacing:1px;color:#5CF54A;background:#020c01;padding:8px;border:1px solid #5CF54A;">
+      <div style="margin-bottom:6px;">${pin.name}</div>
+      ${!pin.found
+        ? `<button onclick="collectPin(${pin.id})" style="margin-right:6px;font-family:monospace;background:#020c01;color:#5CF54A;border:1px solid #5CF54A;padding:3px 8px;cursor:pointer;">COLLECT</button>`
+        : `<span style="color:#2a7a1e;">FOUND</span> `}
+      <button onclick="removePin(${pin.id})" style="font-family:monospace;background:#020c01;color:#ff3b3b;border:1px solid #ff3b3b;padding:3px 8px;cursor:pointer;">REMOVE</button>
+    </div>`;
+  marker.bindPopup(content, { closeButton: false, className: 'pip-leaflet-popup' }).openPopup();
+}
+
+function collectPin(id) {
+  const pin = mapPins.find(p => p.id === id);
+  if (pin) {
+    pin.found = true;
+    saveMapPins();
+    if (pinMarkers[id]) pinMarkers[id].setIcon(makePinIcon(pin));
+    const log = document.getElementById('enc-log');
+    const entry = document.createElement('div');
+    entry.className = 'enc-entry';
+    entry.innerHTML = `<div class="enc-time">${new Date().toLocaleTimeString()}</div>
+      <div class="enc-enemy neutral">HOLOTAPE COLLECTED</div>
+      <div class="enc-detail">${pin.name}</div>`;
+    log.prepend(entry);
+  }
+  if (leafletMap) leafletMap.closePopup();
+}
+
+function removePin(id) {
+  mapPins = mapPins.filter(p => p.id !== id);
+  saveMapPins();
+  if (pinMarkers[id]) { pinMarkers[id].remove(); delete pinMarkers[id]; }
+  if (leafletMap) leafletMap.closePopup();
+}
+
+function clearAllPins() {
+  if (!confirm('CLEAR ALL HOLOTAPE LOCATIONS?')) return;
+  mapPins = [];
+  saveMapPins();
+  Object.values(pinMarkers).forEach(m => m.remove());
+  pinMarkers = {};
+  if (leafletMap) leafletMap.closePopup();
+}
+
+function togglePinMode() {
+  mapPinMode = !mapPinMode;
+  const btn = document.getElementById('map-pin-mode-btn');
+  btn.classList.toggle('placing', mapPinMode);
+  btn.textContent = mapPinMode ? '[ TAP MAP TO PLACE ]' : '[ PLACE HOLOTAPE ]';
+  if (leafletMap) leafletMap.getContainer().style.cursor = mapPinMode ? 'crosshair' : '';
+}
+
+function checkHolotapeProximity(latlng) {
   mapPins.forEach(pin => {
     if (pin.found || pin._cooldown) return;
-    const d = haversineM(mapGPS.lat, mapGPS.lng, pin.lat, pin.lng);
+    const d = haversineM(latlng.lat, latlng.lng, pin.lat, pin.lng);
     if (d < HOLOTAPE_DETECT_M) {
       pin._cooldown = true;
       setTimeout(() => { pin._cooldown = false; }, 60000);
@@ -1841,202 +1801,54 @@ function checkHolotapeProximity() {
   });
 }
 
-function togglePinMode() {
-  mapPinMode = !mapPinMode;
-  const btn = document.getElementById('map-pin-mode-btn');
-  btn.classList.toggle('placing', mapPinMode);
-  btn.textContent = mapPinMode ? '[ TAP MAP TO PLACE ]' : '[ PLACE HOLOTAPE ]';
-  closeMapPopup();
-}
+function initLeafletMap() {
+  if (leafletMap) { leafletMap.invalidateSize(); return; }
 
-function closeMapPopup() {
-  if (mapPopupEl) { mapPopupEl.remove(); mapPopupEl = null; }
-}
+  leafletMap = L.map('map-leaflet', {
+    center: [40.762, -73.922],
+    zoom: 16,
+    zoomControl: true,
+    attributionControl: false,
+  });
 
-document.addEventListener('click', e => {
-  if (mapPopupEl && !mapPopupEl.contains(e.target)) closeMapPopup();
-});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+  }).addTo(leafletMap);
 
-function handleMapTap(e) {
-  const canvas = document.getElementById('map-canvas');
-  const rect = canvas.getBoundingClientRect();
-  // Scale from CSS pixels → canvas pixels
-  const scaleX = MAP_IMG_W / rect.width;
-  const scaleY = MAP_IMG_H / rect.height;
-  const tapCX = (e.clientX - rect.left) * scaleX;
-  const tapCY = (e.clientY - rect.top)  * scaleY;
-  const { lat, lng } = canvasToGPS(tapCX, tapCY);
+  // GPS tracking
+  leafletMap.locate({ watch: true, enableHighAccuracy: true, setView: true, maxZoom: 17 });
 
-  if (mapPinMode) {
+  leafletMap.on('locationfound', e => {
+    document.getElementById('map-status').textContent = `GPS: LOCKED  ±${Math.round(e.accuracy)}m`;
+    if (!userMarker) {
+      userMarker = L.circleMarker(e.latlng, {
+        radius: 8, fillColor: '#5CF54A', color: '#020c01',
+        weight: 2, fillOpacity: 1,
+      }).addTo(leafletMap);
+    } else {
+      userMarker.setLatLng(e.latlng);
+    }
+    checkHolotapeProximity(e.latlng);
+  });
+
+  leafletMap.on('locationerror', e => {
+    document.getElementById('map-status').textContent = 'GPS: ' + e.message.toUpperCase();
+  });
+
+  // Place pin on tap
+  leafletMap.on('click', e => {
+    if (!mapPinMode) return;
     const num  = mapPins.length + 1;
     const name = `TAPE-${String(num).padStart(2,'0')}`;
-    mapPins.push({ id: Date.now(), name, lat, lng, found: false });
+    const pin  = { id: Date.now(), name, lat: e.latlng.lat, lng: e.latlng.lng, found: false };
+    mapPins.push(pin);
     saveMapPins();
+    addLeafletPin(pin);
     togglePinMode();
-    drawMap();
-    return;
-  }
-
-  // Hit-test existing pins (30 CSS px radius)
-  closeMapPopup();
-  const hit = mapPins.find(pin => {
-    const p = gpsToCanvas(pin.lat, pin.lng);
-    const px = p.x / scaleX, py = p.y / scaleY;
-    return Math.hypot(e.clientX - rect.left - px, e.clientY - rect.top - py) < 30;
   });
-  if (hit) showPinPopup(hit, e.clientX, e.clientY);
-}
 
-function showPinPopup(pin, clientX, clientY) {
-  closeMapPopup();
-  // Popup is a child of map-wrap (unscaled) so position in wrap coords
-  const wrap = document.getElementById('map-wrap');
-  const wr = wrap.getBoundingClientRect();
-  mapPopupEl = document.createElement('div');
-  mapPopupEl.className = 'pin-popup';
-  const popX = Math.min(clientX - wr.left, wr.width - 170);
-  const popY = Math.min(clientY - wr.top + 12, wr.height - 80);
-  mapPopupEl.style.left = popX + 'px';
-  mapPopupEl.style.top  = popY + 'px';
-  mapPopupEl.innerHTML = `
-    <div class="pin-popup-name">${pin.name}</div>
-    ${!pin.found
-      ? `<button class="pip-btn" style="font-size:10px;padding:4px 10px;margin-right:6px;"
-           onclick="collectPin(${pin.id})">COLLECT</button>`
-      : `<span style="color:var(--gd);font-size:10px;margin-right:8px;">FOUND</span>`}
-    <button class="pip-btn" style="font-size:10px;padding:4px 10px;color:#ff3b3b;border-color:#ff3b3b;"
-      onclick="removePin(${pin.id})">REMOVE</button>
-  `;
-  wrap.appendChild(mapPopupEl);
-}
-
-function collectPin(id) {
-  const pin = mapPins.find(p => p.id === id);
-  if (pin) {
-    pin.found = true;
-    saveMapPins();
-    const log = document.getElementById('enc-log');
-    const entry = document.createElement('div');
-    entry.className = 'enc-entry';
-    entry.innerHTML = `<div class="enc-time">${new Date().toLocaleTimeString()}</div>
-      <div class="enc-enemy neutral">HOLOTAPE COLLECTED</div>
-      <div class="enc-detail">${pin.name}</div>`;
-    log.prepend(entry);
-  }
-  closeMapPopup();
-  drawMap();
-}
-
-function removePin(id) {
-  mapPins = mapPins.filter(p => p.id !== id);
-  saveMapPins();
-  closeMapPopup();
-  drawMap();
-}
-function clearAllPins() {
-  if (!confirm('CLEAR ALL HOLOTAPE LOCATIONS?')) return;
-  mapPins = [];
-  saveMapPins();
-  closeMapPopup();
-  drawMap();
-}
-
-// ─────────────────────────────────────────────
-// MAP ZOOM / PAN
-// ─────────────────────────────────────────────
-let mpScale = 1, mpTx = 0, mpTy = 0;
-let mpPinchStart = null;   // { dist, scale, midX, midY }
-let mpDragStart  = null;   // { x, y, tx, ty }
-let mpDragMoved  = false;
-
-function applyMapTransform() {
-  const inner = document.getElementById('map-inner');
-  if (inner) inner.style.transform = `translate(${mpTx}px,${mpTy}px) scale(${mpScale})`;
-}
-
-function clampMapTransform() {
-  const wrap  = document.getElementById('map-wrap');
-  const inner = document.getElementById('map-inner');
-  if (!wrap || !inner) return;
-  const wW = wrap.offsetWidth,  wH = wrap.offsetHeight;
-  const iW = inner.offsetWidth * mpScale;
-  const iH = inner.offsetHeight * mpScale;
-  mpTx = Math.min(0, Math.max(iW > wW ? wW - iW : 0, mpTx));
-  mpTy = Math.min(0, Math.max(iH > wH ? wH - iH : 0, mpTy));
-}
-
-function initMapTouch() {
-  const wrap = document.getElementById('map-wrap');
-  if (!wrap) return;
-
-  wrap.addEventListener('touchstart', e => {
-    e.preventDefault();
-    if (e.touches.length === 2) {
-      mpDragStart = null;
-      const dx = e.touches[1].clientX - e.touches[0].clientX;
-      const dy = e.touches[1].clientY - e.touches[0].clientY;
-      const wr = wrap.getBoundingClientRect();
-      mpPinchStart = {
-        dist:  Math.hypot(dx, dy),
-        scale: mpScale,
-        tx:    mpTx,
-        ty:    mpTy,
-        midX:  (e.touches[0].clientX + e.touches[1].clientX) / 2 - wr.left,
-        midY:  (e.touches[0].clientY + e.touches[1].clientY) / 2 - wr.top,
-      };
-    } else if (e.touches.length === 1) {
-      mpPinchStart = null;
-      mpDragStart  = { x: e.touches[0].clientX, y: e.touches[0].clientY, tx: mpTx, ty: mpTy };
-      mpDragMoved  = false;
-    }
-  }, { passive: false });
-
-  wrap.addEventListener('touchmove', e => {
-    e.preventDefault();
-    if (e.touches.length === 2 && mpPinchStart) {
-      const dx = e.touches[1].clientX - e.touches[0].clientX;
-      const dy = e.touches[1].clientY - e.touches[0].clientY;
-      const newDist  = Math.hypot(dx, dy);
-      const newScale = Math.max(0.9, Math.min(7, mpPinchStart.scale * (newDist / mpPinchStart.dist)));
-      const ratio    = newScale / mpPinchStart.scale;
-      // Zoom centred on pinch midpoint
-      mpTx    = mpPinchStart.midX - ratio * (mpPinchStart.midX - mpPinchStart.tx);
-      mpTy    = mpPinchStart.midY - ratio * (mpPinchStart.midY - mpPinchStart.ty);
-      mpScale = newScale;
-      clampMapTransform();
-      applyMapTransform();
-    } else if (e.touches.length === 1 && mpDragStart) {
-      const dx = e.touches[0].clientX - mpDragStart.x;
-      const dy = e.touches[0].clientY - mpDragStart.y;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) mpDragMoved = true;
-      mpTx = mpDragStart.tx + dx;
-      mpTy = mpDragStart.ty + dy;
-      clampMapTransform();
-      applyMapTransform();
-    }
-  }, { passive: false });
-
-  wrap.addEventListener('touchend', e => {
-    e.preventDefault();
-    if (e.touches.length === 0) {
-      if (mpDragStart && !mpDragMoved) {
-        // Treat as tap
-        handleMapTap({ clientX: mpDragStart.x, clientY: mpDragStart.y });
-      }
-      mpDragStart = null;
-      mpPinchStart = null;
-    } else if (e.touches.length === 1) {
-      mpPinchStart = null;
-      mpDragStart  = { x: e.touches[0].clientX, y: e.touches[0].clientY, tx: mpTx, ty: mpTy };
-      mpDragMoved  = false;
-    }
-  }, { passive: false });
-
-  // Mouse support for laptop testing
-  wrap.addEventListener('click', e => {
-    if (!mpDragMoved) handleMapTap(e);
-    mpDragMoved = false;
-  });
+  // Load saved pins
+  mapPins.forEach(pin => addLeafletPin(pin));
 }
 
 // ─────────────────────────────────────────────
@@ -2060,9 +1872,15 @@ function init(){
   document.getElementById('notes-ta').value = S.notes||'';
   scheduleNextEncounter();
   loadMapPins();
-  initMapTouch();
+  // Init Leaflet when MAP tab is first opened
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.dataset.tab === 'map') {
+      t.addEventListener('click', () => setTimeout(initLeafletMap, 50));
+    }
+  });
 }
 init();
 </script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>
