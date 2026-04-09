@@ -1059,6 +1059,7 @@ function renderInv(){
           ? '<div class="inv-row" style="color:var(--gd);font-size:11px;">EMPTY</div>'
           : items.map((item,i)=>`
             <div class="inv-row">
+              ${cat==='WEAPONS' ? weaponImgTag(item.name, 32) : ''}
               <span class="inv-name">${item.name}</span>
               <span class="inv-qty">x${item.qty}</span>
               ${isAid ? `<button class="use-btn" onclick="useItem('${cat}',${i})">USE</button>` : ''}
@@ -1287,6 +1288,24 @@ const ENEMY_IMAGES = {
   'SUPER MUTANT':           'super mutant.webp',
 };
 
+const WEAPON_IMAGES = {
+  'ROCKET LAUNCHER': 'rocket launcher image.jpg',
+  'SUBMACHINE GUN':  'submachine gun image.png',
+  'LASER PISTOL':    'pistol image.jpeg',
+  'KNIFE':           'knife image.jpeg',
+};
+function getWeaponImage(name) {
+  for (const [key, src] of Object.entries(WEAPON_IMAGES)) {
+    if (name.toUpperCase().includes(key)) return src;
+  }
+  return null;
+}
+function weaponImgTag(name, size=40) {
+  const src = getWeaponImage(name);
+  if (!src) return '';
+  return `<img src="${src}" style="width:${size}px;height:${size}px;object-fit:contain;filter:invert(1) sepia(1) saturate(6) hue-rotate(65deg) brightness(0.9);flex-shrink:0;" draggable="false">`;
+}
+
 // Weapon damage + durability (uses before destroyed)
 const WEAPON_STATS = {
   'ROCKET LAUNCHER': { damage:55, uses:1 },
@@ -1416,8 +1435,9 @@ function renderWeaponButtons() {
   box.innerHTML = '<div class="ho-wep-label">// USE WEAPON //</div>' +
     weapons.map((w,i) => {
       const stats = getWeaponStats(w.name);
-      return `<button class="ho-wep-btn" id="wbtn-${i}" onclick="useWeaponInEncounter(${i})">
-        ${w.name} &nbsp;<span style="color:var(--gd);font-size:10px;">[DMG ${stats.damage} | ${w.uses||stats.uses} USE${(w.uses||stats.uses)!==1?'S':''}]</span>
+      return `<button class="ho-wep-btn" id="wbtn-${i}" onclick="useWeaponInEncounter(${i})" style="display:flex;align-items:center;gap:10px;">
+        ${weaponImgTag(w.name, 36)}
+        <span>${w.name} &nbsp;<span style="color:var(--gd);font-size:10px;">[DMG ${stats.damage} | ${w.uses||stats.uses} USE${(w.uses||stats.uses)!==1?'S':''}]</span></span>
       </button>`;
     }).join('');
 }
@@ -1569,8 +1589,14 @@ function triggerFriendly() {
   const foImgSrc = FRIENDLY_IMAGES[activeFriendly.name];
   if (foImgSrc) { foImg.src = foImgSrc; foImg.style.display = 'block'; }
   else           { foImg.style.display = 'none'; }
-  document.getElementById('fo-offer').textContent   =
-    'OFFERING: ' + activeFriendly.offers.map(o=>`${o.name} x${o.qty}`).join(', ');
+  document.getElementById('fo-offer').innerHTML =
+    '<div style="font-size:10px;color:var(--gd);margin-bottom:6px;">OFFERING:</div>' +
+    activeFriendly.offers.map(o =>
+      `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+        ${weaponImgTag(o.name, 38)}
+        <span>${o.name} x${o.qty}</span>
+      </div>`
+    ).join('');
   document.getElementById('fo-timer').textContent   = friendlySeconds;
   document.getElementById('friendly-overlay').classList.add('open');
   healBeep();
