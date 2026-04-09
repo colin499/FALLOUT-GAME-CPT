@@ -718,93 +718,122 @@ let musicNodes = [];
 
 function startSuspenseMusic() {
   const c = ac();
-  // Resume context if suspended (required after user interaction on some browsers)
   if (c.state === 'suspended') c.resume();
   stopSuspenseMusic();
 
-  // Master gain — keeps overall volume controlled
+  // ── MASTER & REVERB ──────────────────────────────
   const master = c.createGain();
-  master.gain.value = 0.5;
+  master.gain.value = 0.38;
   master.connect(c.destination);
 
-  // Low drone — raised to 110Hz so laptop speakers can reproduce it
-  const droneOsc = c.createOscillator();
-  droneOsc.type = 'sawtooth';
-  droneOsc.frequency.value = 110;
-  const droneFilter = c.createBiquadFilter();
-  droneFilter.type = 'lowpass';
-  droneFilter.frequency.value = 600;
-  const droneGain = c.createGain();
-  droneGain.gain.value = 0.18;
-  // slow pulse for tension
-  const lfo = c.createOscillator();
-  lfo.type = 'sine';
-  lfo.frequency.value = 0.7;
-  const lfoGain = c.createGain();
-  lfoGain.gain.value = 0.1;
-  lfo.connect(lfoGain);
-  lfoGain.connect(droneGain.gain);
-  droneOsc.connect(droneFilter);
-  droneFilter.connect(droneGain);
-  droneGain.connect(master);
-  droneOsc.start(); lfo.start();
+  // Simulate reverb with a feedback delay network
+  const rvIn  = c.createGain(); rvIn.gain.value = 1;
+  const rvOut = c.createGain(); rvOut.gain.value = 0.45;
+  rvOut.connect(master);
+  [[0.17, 0.28], [0.31, 0.22], [0.53, 0.16]].forEach(([t, fb]) => {
+    const d = c.createDelay(2); d.delayTime.value = t;
+    const g = c.createGain(); g.gain.value = fb;
+    rvIn.connect(d); d.connect(g); g.connect(d); g.connect(rvOut);
+  });
 
-  // Mid tension — filtered sawtooth, bandpass for that "strings" texture
-  const strOsc = c.createOscillator();
-  strOsc.type = 'sawtooth';
-  strOsc.frequency.value = 220;
-  const strFilter = c.createBiquadFilter();
-  strFilter.type = 'bandpass';
-  strFilter.frequency.value = 800;
-  strFilter.Q.value = 3;
-  const strGain = c.createGain();
-  strGain.gain.value = 0.12;
-  strOsc.connect(strFilter);
-  strFilter.connect(strGain);
-  strGain.connect(master);
-  strOsc.start();
+  function dry(node)  { node.connect(master); }
+  function wet(node)  { node.connect(rvIn); }
+  function both(node) { dry(node); wet(node); }
 
-  // Eerie high shimmer with tremolo
-  const shimOsc = c.createOscillator();
-  shimOsc.type = 'sine';
-  shimOsc.frequency.value = 880;
-  const shimGain = c.createGain();
-  shimGain.gain.value = 0.08;
-  const shimLfo = c.createOscillator();
-  shimLfo.frequency.value = 4;
-  const shimLfoGain = c.createGain();
-  shimLfoGain.gain.value = 0.06;
-  shimLfo.connect(shimLfoGain);
-  shimLfoGain.connect(shimGain.gain);
-  shimOsc.connect(shimGain);
-  shimGain.connect(master);
-  shimOsc.start(); shimLfo.start();
+  // ── BASS DRONE ───────────────────────────────────
+  // Two slightly detuned sines for warmth
+  [110, 110.4].forEach((freq, i) => {
+    const osc = c.createOscillator();
+    osc.type = 'sine'; osc.frequency.value = freq;
+    const g = c.createGain(); g.gain.value = 0.14;
+    const lfo = c.createOscillator();
+    lfo.type = 'sine'; lfo.frequency.value = 0.25 + i * 0.1;
+    const lg = c.createGain(); lg.gain.value = 0.07;
+    lfo.connect(lg); lg.connect(g.gain);
+    osc.connect(g); both(g);
+    osc.start(); lfo.start();
+    musicNodes.push({ stop: () => { osc.stop(); lfo.stop(); } });
+  });
 
-  // Irregular thud — raised filter so it hits on laptop speakers
-  function schedThud() {
+  // ── SPARSE PIANO NOTES ───────────────────────────
+  // A natural minor scale — haunting, open
+  // 0 = silence (rest)
+  const motif = [
+    110, 0, 0, 164.81, 0, 130.81,
+    0, 0, 0, 220, 0, 196,
+    0, 164.81, 0, 0, 0, 146.83,
+    0, 0, 110, 0, 0, 0,
+  ];
+  let mIdx = 0;
+
+  function playPianoNote() {
+    if (!musicNodes.length) return;
+    const freq = motif[mIdx % motif.length];
+    mIdx++;
+
+    if (freq > 0) {
+      const t = c.currentTime;
+      // fundamental + soft second harmonic = piano-like timbre
+      [freq, freq * 2].forEach((f, i) => {
+        const osc = c.createOscillator();
+        osc.type = 'sine'; osc.frequency.value = f;
+        const env = c.createGain();
+        const vol = i === 0 ? 0.28 : 0.07;
+        const decay = i === 0 ? 4.5 : 2.5;
+        env.gain.setValueAtTime(0, t);
+        env.gain.linearRampToValueAtTime(vol, t + 0.015);
+        env.gain.exponentialRampToValueAtTime(0.001, t + decay);
+        osc.connect(env); wet(env);
+        osc.start(t); osc.stop(t + decay + 0.1);
+      });
+    }
+
+    const interval = 1800 + Math.random() * 2200;
+    const tid = setTimeout(playPianoNote, interval);
+    musicNodes.push({ stop: () => clearTimeout(tid) });
+  }
+  playPianoNote();
+
+  // ── INDUSTRIAL METALLIC HITS ─────────────────────
+  // Resonant noise bursts — machinery, pipes, distant clangs
+  function schedMetal() {
     if (!musicNodes.length) return;
     const t = c.currentTime;
-    const buf = c.createBuffer(1, c.sampleRate * 0.18, c.sampleRate);
+    const dur = 0.5 + Math.random() * 0.4;
+    const buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate);
     const d = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     const src = c.createBufferSource(); src.buffer = buf;
-    const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=220;
+    const bp  = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 600 + Math.random() * 1800;
+    bp.Q.value = 12 + Math.random() * 8;
     const g = c.createGain();
-    g.gain.setValueAtTime(0.5, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-    src.connect(lp); lp.connect(g); g.connect(master);
-    src.start(t); src.stop(t + 0.18);
-    const tid = setTimeout(schedThud, 700 + Math.random() * 600);
-    musicNodes.push({ stop: ()=> clearTimeout(tid) });
-  }
-  schedThud();
+    g.gain.setValueAtTime(0.35, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(bp); bp.connect(g); wet(g);
+    src.start(t); src.stop(t + dur);
 
-  musicNodes.push(
-    { stop: ()=>{ droneOsc.stop(); lfo.stop(); } },
-    { stop: ()=>{ strOsc.stop(); } },
-    { stop: ()=>{ shimOsc.stop(); shimLfo.stop(); } },
-    { stop: ()=>{ master.disconnect(); } },
-  );
+    const next = 7000 + Math.random() * 14000;
+    const tid = setTimeout(schedMetal, next);
+    musicNodes.push({ stop: () => clearTimeout(tid) });
+  }
+  setTimeout(schedMetal, 4000);
+
+  // ── LOW STATIC / TAPE HIS ────────────────────────
+  // Looping noise for that old analog/vault feel
+  const sBuf = c.createBuffer(1, c.sampleRate, c.sampleRate);
+  const sData = sBuf.getChannelData(0);
+  for (let i = 0; i < sData.length; i++) sData[i] = Math.random() * 2 - 1;
+  const sSrc = c.createBufferSource();
+  sSrc.buffer = sBuf; sSrc.loop = true;
+  const sLp = c.createBiquadFilter(); sLp.type = 'lowpass'; sLp.frequency.value = 250;
+  const sG  = c.createGain(); sG.gain.value = 0.018;
+  sSrc.connect(sLp); sLp.connect(sG); dry(sG);
+  sSrc.start();
+  musicNodes.push({ stop: () => sSrc.stop() });
+
+  musicNodes.push({ stop: () => master.disconnect() });
 }
 
 function stopSuspenseMusic() {
