@@ -418,11 +418,23 @@
     </div>
 
     <div class="stat-layout">
-      <img src="vaultboy.png" draggable="false" style="
-        width: 110px; flex-shrink:0;
-        filter: invert(1) sepia(1) saturate(6) hue-rotate(65deg) brightness(0.95)
-                drop-shadow(0 0 8px #5CF54A);
-      ">
+      <div style="position:relative; width:110px; flex-shrink:0;">
+        <img src="vaultboy.png" draggable="false" style="
+          width:110px; display:block;
+          filter: invert(1) sepia(1) saturate(6) hue-rotate(65deg) brightness(0.95)
+                  drop-shadow(0 0 8px #5CF54A);
+        ">
+        <!-- Limb damage overlay — shapes tuned to Vault Boy proportions -->
+        <svg id="limb-svg" viewBox="0 0 110 170" preserveAspectRatio="none"
+             style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+          <ellipse id="limb-head"  cx="55" cy="24" rx="18" ry="17" fill="none" fill-opacity="0.5"/>
+          <rect    id="limb-torso" x="30"  y="46"  width="50" height="46" rx="5" fill="none" fill-opacity="0.5"/>
+          <rect    id="limb-larm"  x="6"   y="48"  width="22" height="40" rx="5" fill="none" fill-opacity="0.5"/>
+          <rect    id="limb-rarm"  x="82"  y="48"  width="22" height="40" rx="5" fill="none" fill-opacity="0.5"/>
+          <rect    id="limb-lleg"  x="24"  y="96"  width="26" height="54" rx="5" fill="none" fill-opacity="0.5"/>
+          <rect    id="limb-rleg"  x="60"  y="96"  width="26" height="54" rx="5" fill="none" fill-opacity="0.5"/>
+        </svg>
+      </div>
       <div class="limb-list" id="limb-list"></div>
     </div>
 
@@ -905,7 +917,7 @@ function renderStats() {
   document.getElementById('rad-val').textContent = `${S.rad.cur} RAD`;
   document.getElementById('rad-bar').style.width = radPct+'%';
 
-  // Limbs
+  // Limbs — text list
   const ll = document.getElementById('limb-list');
   ll.innerHTML = LIMB_DEFS.map(({id,label})=>{
     const status = S.limbs[id]||'OK';
@@ -915,6 +927,23 @@ function renderStats() {
       <span class="${cls}">${status}</span>
     </div>`;
   }).join('');
+
+  // Limbs — SVG overlay colors
+  LIMB_DEFS.forEach(({id, svgId}) => {
+    const el = document.getElementById(svgId);
+    if (!el) return;
+    const status = S.limbs[id] || 'OK';
+    if (status === 'OK') {
+      el.setAttribute('fill', 'none');
+      el.style.animation = '';
+    } else if (status === 'DAMAGED') {
+      el.setAttribute('fill', '#ff9500');
+      el.style.animation = '';
+    } else {
+      el.setAttribute('fill', '#ff3b3b');
+      el.style.animation = 'threat-pulse 1.2s infinite';
+    }
+  });
 }
 
 
