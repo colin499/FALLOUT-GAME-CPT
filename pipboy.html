@@ -712,82 +712,83 @@ let musicNodes = [];
 
 function startSuspenseMusic() {
   const c = ac();
+  // Resume context if suspended (required after user interaction on some browsers)
+  if (c.state === 'suspended') c.resume();
   stopSuspenseMusic();
 
-  // Low drone — ominous bass rumble
+  // Master gain — keeps overall volume controlled
+  const master = c.createGain();
+  master.gain.value = 0.5;
+  master.connect(c.destination);
+
+  // Low drone — raised to 110Hz so laptop speakers can reproduce it
   const droneOsc = c.createOscillator();
   droneOsc.type = 'sawtooth';
-  droneOsc.frequency.value = 55;
-  const droneGain = c.createGain();
-  droneGain.gain.value = 0.06;
+  droneOsc.frequency.value = 110;
   const droneFilter = c.createBiquadFilter();
   droneFilter.type = 'lowpass';
-  droneFilter.frequency.value = 180;
-  droneOsc.connect(droneFilter);
-  droneFilter.connect(droneGain);
-  droneGain.connect(c.destination);
-  droneOsc.start();
-
-  // Pulse LFO on the drone for tension
+  droneFilter.frequency.value = 600;
+  const droneGain = c.createGain();
+  droneGain.gain.value = 0.18;
+  // slow pulse for tension
   const lfo = c.createOscillator();
   lfo.type = 'sine';
-  lfo.frequency.value = 0.9;
+  lfo.frequency.value = 0.7;
   const lfoGain = c.createGain();
-  lfoGain.gain.value = 0.04;
+  lfoGain.gain.value = 0.1;
   lfo.connect(lfoGain);
   lfoGain.connect(droneGain.gain);
-  lfo.start();
+  droneOsc.connect(droneFilter);
+  droneFilter.connect(droneGain);
+  droneGain.connect(master);
+  droneOsc.start(); lfo.start();
 
-  // Mid tension string-like layer
+  // Mid tension — filtered sawtooth, bandpass for that "strings" texture
   const strOsc = c.createOscillator();
   strOsc.type = 'sawtooth';
-  strOsc.frequency.value = 110;
+  strOsc.frequency.value = 220;
   const strFilter = c.createBiquadFilter();
   strFilter.type = 'bandpass';
-  strFilter.frequency.value = 400;
-  strFilter.Q.value = 2;
+  strFilter.frequency.value = 800;
+  strFilter.Q.value = 3;
   const strGain = c.createGain();
-  strGain.gain.value = 0.03;
+  strGain.gain.value = 0.12;
   strOsc.connect(strFilter);
   strFilter.connect(strGain);
-  strGain.connect(c.destination);
+  strGain.connect(master);
   strOsc.start();
 
-  // High shimmer — eerie upper tone
+  // Eerie high shimmer with tremolo
   const shimOsc = c.createOscillator();
   shimOsc.type = 'sine';
-  shimOsc.frequency.value = 660;
+  shimOsc.frequency.value = 880;
   const shimGain = c.createGain();
-  shimGain.gain.value = 0.015;
-  // slow tremolo on shimmer
+  shimGain.gain.value = 0.08;
   const shimLfo = c.createOscillator();
-  shimLfo.frequency.value = 3.5;
+  shimLfo.frequency.value = 4;
   const shimLfoGain = c.createGain();
-  shimLfoGain.gain.value = 0.012;
+  shimLfoGain.gain.value = 0.06;
   shimLfo.connect(shimLfoGain);
   shimLfoGain.connect(shimGain.gain);
   shimOsc.connect(shimGain);
-  shimGain.connect(c.destination);
-  shimOsc.start();
-  shimLfo.start();
+  shimGain.connect(master);
+  shimOsc.start(); shimLfo.start();
 
-  // Irregular heartbeat-like low thud
+  // Irregular thud — raised filter so it hits on laptop speakers
   function schedThud() {
     if (!musicNodes.length) return;
     const t = c.currentTime;
-    const buf = c.createBuffer(1, c.sampleRate * 0.15, c.sampleRate);
+    const buf = c.createBuffer(1, c.sampleRate * 0.18, c.sampleRate);
     const d = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     const src = c.createBufferSource(); src.buffer = buf;
-    const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=80;
+    const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=220;
     const g = c.createGain();
-    g.gain.setValueAtTime(0.18, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-    src.connect(lp); lp.connect(g); g.connect(c.destination);
-    src.start(t); src.stop(t + 0.15);
-    // slightly randomized interval for unease
-    const next = 600 + Math.random() * 500;
-    const tid = setTimeout(schedThud, next);
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    src.connect(lp); lp.connect(g); g.connect(master);
+    src.start(t); src.stop(t + 0.18);
+    const tid = setTimeout(schedThud, 700 + Math.random() * 600);
     musicNodes.push({ stop: ()=> clearTimeout(tid) });
   }
   schedThud();
@@ -796,6 +797,7 @@ function startSuspenseMusic() {
     { stop: ()=>{ droneOsc.stop(); lfo.stop(); } },
     { stop: ()=>{ strOsc.stop(); } },
     { stop: ()=>{ shimOsc.stop(); shimLfo.stop(); } },
+    { stop: ()=>{ master.disconnect(); } },
   );
 }
 
