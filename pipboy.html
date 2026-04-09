@@ -553,6 +553,7 @@
       <div class="row" style="gap:8px;">
         <button class="pip-btn" id="map-pin-mode-btn" style="flex:1;" onclick="togglePinMode()">[ PLACE HOLOTAPE ]</button>
         <button class="pip-btn" onclick="startMapGPS()" style="flex:none;">GPS ON</button>
+        <button class="pip-btn danger" onclick="clearAllPins()" style="flex:none;">CLEAR ALL</button>
       </div>
       <div id="map-status">GPS: TAP "GPS ON" TO START</div>
     </div>
@@ -1946,6 +1947,13 @@ function collectPin(id) {
 
 function removePin(id) {
   mapPins = mapPins.filter(p => p.id !== id);
+  saveMapPins();
+  closeMapPopup();
+  drawMap();
+}
+function clearAllPins() {
+  if (!confirm('CLEAR ALL HOLOTAPE LOCATIONS?')) return;
+  mapPins = [];
   saveMapPins();
   closeMapPopup();
   drawMap();
