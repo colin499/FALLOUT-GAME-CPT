@@ -1247,8 +1247,8 @@ let firstEncounter = true;
 let encTimer = null;
 
 function scheduleNextEncounter() {
-  const minMs = firstEncounter ? 8*60*1000  : 10*60*1000;
-  const maxMs = firstEncounter ? 20*60*1000 : 25*60*1000;
+  const minMs = firstEncounter ? 1*60*1000 : 2*60*1000;
+  const maxMs = firstEncounter ? 3*60*1000 : 5*60*1000;
   const delay = minMs + Math.random() * (maxMs - minMs);
   firstEncounter = false;
   encTimer = setTimeout(triggerEncounter, delay);
