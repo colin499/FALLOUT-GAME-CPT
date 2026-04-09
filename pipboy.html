@@ -138,6 +138,21 @@
   .limb-damaged { color:#ff9500; }
   .limb-crippled { color:#ff3b3b; animation:threat-pulse 1.2s infinite; }
 
+  /* ───── MAP ───── */
+  #panel-map.on { display:flex; flex-direction:column; gap:10px; }
+  #map-wrap { position:relative; margin:0 -14px; cursor:crosshair; }
+  #map-img  { width:100%; display:block; }
+  #map-canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
+  #map-controls { display:flex; flex-direction:column; gap:6px; }
+  #map-status { font-size:10px; color:var(--gd); letter-spacing:1px; }
+  .pin-popup {
+    position:absolute; background:var(--bg); border:1px solid var(--g);
+    padding:10px 12px; font-size:11px; letter-spacing:1px;
+    z-index:50; min-width:150px; box-shadow: var(--glow);
+  }
+  .pin-popup-name { margin-bottom:8px; color:var(--g); }
+  #map-pin-mode-btn.placing { color:#ff9500; border-color:#ff9500; }
+
   /* ───── SPECIAL ───── */
   .special-grid {
     display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:4px;
@@ -395,6 +410,7 @@
   <div class="tab" data-tab="inv">INV</div>
   <div class="tab" data-tab="data">DATA</div>
   <div class="tab" data-tab="world">WORLD</div>
+  <div class="tab" data-tab="map">MAP</div>
 </div>
 
 <!-- CONTENT -->
@@ -523,6 +539,21 @@
 
   <!-- HOLOTAPE IMPORT (INV tab bottom) -->
   <div style="display:none" id="holotape-import-section"></div>
+
+  <!-- ══════ MAP ══════ -->
+  <div class="panel" id="panel-map">
+    <div id="map-wrap">
+      <img id="map-img" src="map.jpg" draggable="false">
+      <canvas id="map-canvas"></canvas>
+    </div>
+    <div id="map-controls">
+      <div class="row" style="gap:8px;">
+        <button class="pip-btn" id="map-pin-mode-btn" style="flex:1;" onclick="togglePinMode()">[ PLACE HOLOTAPE ]</button>
+        <button class="pip-btn" onclick="startMapGPS()" style="flex:none;">GPS ON</button>
+      </div>
+      <div id="map-status">GPS: TAP "GPS ON" TO START</div>
+    </div>
+  </div>
 
 </div>
 
@@ -1673,6 +1704,250 @@ function loadHolotape(event) {
 }
 
 // ─────────────────────────────────────────────
+// MAP
+// ─────────────────────────────────────────────
+// GPS bounding box for map.jpg (Prospect Park area).
+// To calibrate: open Google Maps, right-click the exact top-left and
+// bottom-right corners of your screenshot and paste the coordinates here.
+const MAP_BOUNDS = {
+  north: 40.6762,   // latitude of top edge
+  south: 40.6488,   // latitude of bottom edge
+  west:  -73.9870,  // longitude of left edge
+  east:  -73.9557,  // longitude of right edge
+};
+const MAP_IMG_W = 1313;
+const MAP_IMG_H = 1819;
+const HOLOTAPE_DETECT_M = 40; // meters to trigger "signal detected"
+
+let mapGPS = null;
+let mapPinMode = false;
+let mapPins = [];
+let mapWatchId = null;
+let mapPopupEl = null;
+let mapDotOn = true;
+
+function loadMapPins() {
+  try { mapPins = JSON.parse(localStorage.getItem('map_pins') || '[]'); } catch(e){ mapPins=[]; }
+}
+function saveMapPins() {
+  localStorage.setItem('map_pins', JSON.stringify(mapPins));
+}
+
+function gpsToCanvas(lat, lng) {
+  const x = (lng - MAP_BOUNDS.west)  / (MAP_BOUNDS.east  - MAP_BOUNDS.west)  * MAP_IMG_W;
+  const y = (MAP_BOUNDS.north - lat) / (MAP_BOUNDS.north - MAP_BOUNDS.south) * MAP_IMG_H;
+  return { x, y };
+}
+function canvasToGPS(cx, cy) {
+  const lng = MAP_BOUNDS.west  + (cx / MAP_IMG_W) * (MAP_BOUNDS.east  - MAP_BOUNDS.west);
+  const lat = MAP_BOUNDS.north - (cy / MAP_IMG_H) * (MAP_BOUNDS.north - MAP_BOUNDS.south);
+  return { lat, lng };
+}
+function haversineM(lat1, lng1, lat2, lng2) {
+  const R = 6371000, r = Math.PI/180;
+  const dLat = (lat2-lat1)*r, dLng = (lng2-lng1)*r;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function drawMap() {
+  const canvas = document.getElementById('map-canvas');
+  if (!canvas || !canvas.offsetParent) return;
+  const img = document.getElementById('map-img');
+  canvas.width  = MAP_IMG_W;
+  canvas.height = MAP_IMG_H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Pins
+  mapPins.forEach(pin => {
+    const p = gpsToCanvas(pin.lat, pin.lng);
+    const color = pin.found ? '#2a7a1e' : '#5CF54A';
+    // Diamond
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(p.x,      p.y - 22);
+    ctx.lineTo(p.x + 14, p.y);
+    ctx.lineTo(p.x,      p.y + 8);
+    ctx.lineTo(p.x - 14, p.y);
+    ctx.closePath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.fillStyle = pin.found ? '#091205' : '#0d1f09';
+    ctx.fill();
+    // Label
+    ctx.font = 'bold 28px monospace';
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = pin.found ? 0 : 12;
+    ctx.fillText(pin.name, p.x + 18, p.y + 8);
+    ctx.restore();
+  });
+
+  // GPS dot
+  if (mapGPS && mapDotOn) {
+    const p = gpsToCanvas(mapGPS.lat, mapGPS.lng);
+    ctx.save();
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 18, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(92,245,74,0.35)';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    // Dot
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 9, 0, Math.PI*2);
+    ctx.fillStyle = '#5CF54A';
+    ctx.shadowColor = '#5CF54A';
+    ctx.shadowBlur = 24;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// Blink the GPS dot
+setInterval(() => {
+  mapDotOn = !mapDotOn;
+  drawMap();
+}, 700);
+
+function startMapGPS() {
+  if (mapWatchId !== null) return;
+  if (!navigator.geolocation) {
+    document.getElementById('map-status').textContent = 'GPS: NOT SUPPORTED';
+    return;
+  }
+  document.getElementById('map-status').textContent = 'GPS: ACQUIRING SIGNAL...';
+  mapWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      mapGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const acc = Math.round(pos.coords.accuracy);
+      document.getElementById('map-status').textContent =
+        `GPS: LOCKED  ±${acc}m`;
+      drawMap();
+      checkHolotapeProximity();
+    },
+    err => {
+      document.getElementById('map-status').textContent = 'GPS: ' + err.message.toUpperCase();
+    },
+    { enableHighAccuracy: true, maximumAge: 4000, timeout: 15000 }
+  );
+}
+
+function checkHolotapeProximity() {
+  if (!mapGPS) return;
+  mapPins.forEach(pin => {
+    if (pin.found || pin._cooldown) return;
+    const d = haversineM(mapGPS.lat, mapGPS.lng, pin.lat, pin.lng);
+    if (d < HOLOTAPE_DETECT_M) {
+      pin._cooldown = true;
+      setTimeout(() => { pin._cooldown = false; }, 60000);
+      const log = document.getElementById('enc-log');
+      const entry = document.createElement('div');
+      entry.className = 'enc-entry';
+      entry.innerHTML = `<div class="enc-time">${new Date().toLocaleTimeString()}</div>
+        <div class="enc-enemy neutral">⚡ HOLOTAPE SIGNAL</div>
+        <div class="enc-detail">${pin.name} — ${Math.round(d)}m AWAY</div>`;
+      log.prepend(entry);
+      alert3();
+    }
+  });
+}
+
+function togglePinMode() {
+  mapPinMode = !mapPinMode;
+  const btn = document.getElementById('map-pin-mode-btn');
+  btn.classList.toggle('placing', mapPinMode);
+  btn.textContent = mapPinMode ? '[ TAP MAP TO PLACE ]' : '[ PLACE HOLOTAPE ]';
+  closeMapPopup();
+}
+
+function closeMapPopup() {
+  if (mapPopupEl) { mapPopupEl.remove(); mapPopupEl = null; }
+}
+
+document.addEventListener('click', e => {
+  if (mapPopupEl && !mapPopupEl.contains(e.target)) closeMapPopup();
+});
+
+function handleMapTap(e) {
+  const canvas = document.getElementById('map-canvas');
+  const rect = canvas.getBoundingClientRect();
+  // Scale from CSS pixels → canvas pixels
+  const scaleX = MAP_IMG_W / rect.width;
+  const scaleY = MAP_IMG_H / rect.height;
+  const tapCX = (e.clientX - rect.left) * scaleX;
+  const tapCY = (e.clientY - rect.top)  * scaleY;
+  const { lat, lng } = canvasToGPS(tapCX, tapCY);
+
+  if (mapPinMode) {
+    const num  = mapPins.length + 1;
+    const name = `TAPE-${String(num).padStart(2,'0')}`;
+    mapPins.push({ id: Date.now(), name, lat, lng, found: false });
+    saveMapPins();
+    togglePinMode();
+    drawMap();
+    return;
+  }
+
+  // Hit-test existing pins (30 CSS px radius)
+  closeMapPopup();
+  const hit = mapPins.find(pin => {
+    const p = gpsToCanvas(pin.lat, pin.lng);
+    const px = p.x / scaleX, py = p.y / scaleY;
+    return Math.hypot(e.clientX - rect.left - px, e.clientY - rect.top - py) < 30;
+  });
+  if (hit) showPinPopup(hit, e.clientX, e.clientY);
+}
+
+function showPinPopup(pin, clientX, clientY) {
+  closeMapPopup();
+  const wrap = document.getElementById('map-wrap');
+  const wr = wrap.getBoundingClientRect();
+  mapPopupEl = document.createElement('div');
+  mapPopupEl.className = 'pin-popup';
+  const popX = Math.min(clientX - wr.left, wr.width - 170);
+  const popY = clientY - wr.top + 12;
+  mapPopupEl.style.left = popX + 'px';
+  mapPopupEl.style.top  = popY + 'px';
+  mapPopupEl.innerHTML = `
+    <div class="pin-popup-name">${pin.name}</div>
+    ${!pin.found
+      ? `<button class="pip-btn" style="font-size:10px;padding:4px 10px;margin-right:6px;"
+           onclick="collectPin(${pin.id})">COLLECT</button>`
+      : `<span style="color:var(--gd);font-size:10px;margin-right:8px;">FOUND</span>`}
+    <button class="pip-btn" style="font-size:10px;padding:4px 10px;color:#ff3b3b;border-color:#ff3b3b;"
+      onclick="removePin(${pin.id})">REMOVE</button>
+  `;
+  wrap.appendChild(mapPopupEl);
+}
+
+function collectPin(id) {
+  const pin = mapPins.find(p => p.id === id);
+  if (pin) {
+    pin.found = true;
+    saveMapPins();
+    const log = document.getElementById('enc-log');
+    const entry = document.createElement('div');
+    entry.className = 'enc-entry';
+    entry.innerHTML = `<div class="enc-time">${new Date().toLocaleTimeString()}</div>
+      <div class="enc-enemy neutral">HOLOTAPE COLLECTED</div>
+      <div class="enc-detail">${pin.name}</div>`;
+    log.prepend(entry);
+  }
+  closeMapPopup();
+  drawMap();
+}
+
+function removePin(id) {
+  mapPins = mapPins.filter(p => p.id !== id);
+  saveMapPins();
+  closeMapPopup();
+  drawMap();
+}
+
+// ─────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────
 // Start music on first user interaction (browser autoplay policy)
@@ -1692,6 +1967,15 @@ function init(){
   renderWorld();
   document.getElementById('notes-ta').value = S.notes||'';
   scheduleNextEncounter();
+  loadMapPins();
+  // Wire map canvas tap
+  const mapCanvas = document.getElementById('map-canvas');
+  mapCanvas.addEventListener('click', handleMapTap);
+  mapCanvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    handleMapTap({ clientX: t.clientX, clientY: t.clientY });
+  }, { passive: false });
 }
 init();
 </script>
