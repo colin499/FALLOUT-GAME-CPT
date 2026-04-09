@@ -257,6 +257,107 @@
   .modal-title { font-size:13px; letter-spacing:3px; margin-bottom:14px; text-shadow:var(--glow); }
   .modal-row { margin-bottom:10px; }
   .modal-row label { font-size:10px; color:var(--gd); letter-spacing:2px; display:block; margin-bottom:5px; }
+
+  /* ───── HOSTILE ENCOUNTER OVERLAY ───── */
+  #hostile-overlay {
+    position:fixed; inset:0; background:var(--bg);
+    z-index:700; display:none; flex-direction:column;
+    align-items:center; justify-content:center;
+    padding:24px; text-align:center;
+    animation: flicker 3s infinite;
+  }
+  #hostile-overlay.open { display:flex; }
+
+  .ho-warning {
+    font-size:11px; letter-spacing:4px; color:#ff3b3b;
+    text-shadow:0 0 10px #ff3b3b; margin-bottom:8px;
+    animation: threat-pulse .6s ease-in-out infinite;
+  }
+  .ho-enemy {
+    font-size:28px; letter-spacing:3px; color:#ff3b3b;
+    text-shadow:0 0 16px #ff3b3b; margin-bottom:6px; line-height:1.2;
+  }
+  .ho-sub { font-size:11px; color:var(--gd); letter-spacing:2px; margin-bottom:24px; }
+
+  .ho-countdown {
+    font-size:72px; line-height:1; color:#ff3b3b;
+    text-shadow:0 0 20px #ff3b3b, 0 0 40px #ff3b3b55;
+    margin-bottom:6px;
+  }
+  .ho-countdown.safe { color:var(--g); text-shadow:var(--glow-strong); }
+  .ho-cdown-label { font-size:10px; color:var(--gd); letter-spacing:3px; margin-bottom:20px; }
+
+  /* run progress */
+  .ho-run-label { font-size:11px; letter-spacing:3px; margin-bottom:8px; color:var(--gd); }
+  .ho-run-track {
+    width:100%; max-width:280px; height:16px;
+    border:1px solid var(--gd); background:var(--gx); margin-bottom:20px; border-radius:1px;
+  }
+  .ho-run-fill {
+    height:100%; background:var(--g); box-shadow:var(--glow);
+    width:0%; transition:width .5s; border-radius:1px;
+  }
+  .ho-run-fill.escaping { background:#ff9500; box-shadow:0 0 8px #ff950099; }
+  .ho-run-fill.safe { background:var(--g); }
+
+  /* weapon buttons during encounter */
+  .ho-weapons { width:100%; max-width:280px; margin-bottom:16px; }
+  .ho-wep-label { font-size:10px; color:var(--gd); letter-spacing:2px; margin-bottom:8px; }
+  .ho-wep-btn {
+    width:100%; padding:10px; margin-bottom:6px;
+    background:transparent; border:1px solid var(--gd); color:var(--g);
+    font-family:inherit; font-size:12px; letter-spacing:2px; cursor:pointer; text-align:left;
+  }
+  .ho-wep-btn:active { background:var(--gd); }
+  .ho-wep-btn.used { opacity:.4; pointer-events:none; }
+
+  .ho-status {
+    font-size:12px; letter-spacing:2px; min-height:18px;
+    color:var(--g); text-shadow:var(--glow); margin-bottom:12px;
+  }
+
+  /* ───── FRIENDLY OVERLAY ───── */
+  #friendly-overlay {
+    position:fixed; inset:0; background:var(--bg);
+    z-index:700; display:none; flex-direction:column;
+    align-items:center; justify-content:center;
+    padding:24px; text-align:center;
+  }
+  #friendly-overlay.open { display:flex; }
+
+  .fo-header { font-size:11px; letter-spacing:4px; color:var(--g);
+    text-shadow:var(--glow-strong); margin-bottom:8px; }
+  .fo-name   { font-size:26px; letter-spacing:3px; text-shadow:var(--glow-strong);
+    margin-bottom:6px; }
+  .fo-sub    { font-size:11px; color:var(--gd); letter-spacing:1px; margin-bottom:20px; }
+  .fo-dialogue {
+    font-size:13px; color:var(--g); line-height:1.7; letter-spacing:1px;
+    border:1px solid var(--gd); padding:14px; max-width:300px;
+    margin-bottom:16px; font-style:italic;
+  }
+  .fo-offer  { font-size:12px; letter-spacing:2px; color:var(--g);
+    text-shadow:var(--glow); margin-bottom:20px; }
+  .fo-timer  { font-size:11px; color:var(--gd); letter-spacing:2px; margin-bottom:16px; }
+  .fo-btns   { display:flex; gap:12px; }
+
+  /* ───── DEATH SCREEN ───── */
+  #death-screen {
+    position:fixed; inset:0; background:#000;
+    z-index:900; display:none; flex-direction:column;
+    align-items:center; justify-content:center;
+    padding:32px; text-align:center;
+  }
+  #death-screen.open { display:flex; }
+  .ds-title {
+    font-size:52px; color:#ff3b3b; letter-spacing:6px;
+    text-shadow:0 0 20px #ff3b3b, 0 0 60px #ff3b3b55;
+    margin-bottom:8px;
+    animation: threat-pulse 1.5s ease-in-out infinite;
+  }
+  .ds-sub   { font-size:12px; color:#ff3b3b88; letter-spacing:3px; margin-bottom:32px; }
+  .ds-lost  { font-size:12px; color:var(--gd); letter-spacing:1px;
+    line-height:2; margin-bottom:32px; }
+  .ds-lost span { color:#ff3b3b; }
 </style>
 </head>
 <body>
@@ -334,6 +435,16 @@
     <div style="margin-top:10px;font-size:10px;color:var(--gd);letter-spacing:1px;line-height:1.6;">
       AID ITEMS: STIMPAK, RADAWAY, RAD-X, NUKA-COLA, BUFFOUT, MENTATS auto-apply effects when used.
     </div>
+
+    <hr class="div">
+    <div class="bracket-label">HOLOTAPE</div>
+    <div style="font-size:11px;color:var(--gd);letter-spacing:1px;margin-bottom:10px;">
+      Load items stored on a holotape data file.
+    </div>
+    <label class="pip-btn" style="display:block;text-align:center;cursor:pointer;">
+      ▶ LOAD HOLOTAPE DATA
+      <input type="file" accept=".json" style="display:none" onchange="loadHolotape(event)">
+    </label>
   </div>
 
   <!-- ══════ DATA ══════ -->
@@ -369,14 +480,52 @@
     </div>
 
     <div class="row" style="margin-bottom:14px;">
-      <button class="pip-btn" style="flex:1;" onclick="openEncModal()">+ LOG ENCOUNTER</button>
-      <button class="pip-btn danger" onclick="clearEnc()">CLEAR</button>
+      <button class="pip-btn" id="motion-btn" style="flex:1;" onclick="enableMotion()">⚡ ENABLE MOTION</button>
+      <button class="pip-btn danger" onclick="clearEnc()">CLEAR LOG</button>
     </div>
 
     <div class="bracket-label">ENCOUNTER LOG</div>
     <div id="enc-log"></div>
   </div>
 
+  <!-- HOLOTAPE IMPORT (INV tab bottom) -->
+  <div style="display:none" id="holotape-import-section"></div>
+
+</div>
+
+<!-- HOSTILE ENCOUNTER OVERLAY -->
+<div id="hostile-overlay">
+  <div class="ho-warning">⚠ HOSTILE DETECTED ⚠</div>
+  <div class="ho-enemy" id="ho-enemy-name">DEATHCLAW</div>
+  <div class="ho-sub" id="ho-enemy-sub">THREAT LEVEL: CRITICAL</div>
+  <div class="ho-countdown" id="ho-countdown">30</div>
+  <div class="ho-cdown-label">SECONDS TO ESCAPE</div>
+  <div class="ho-run-label" id="ho-run-label">RUN TO ESCAPE</div>
+  <div class="ho-run-track"><div class="ho-run-fill" id="ho-run-fill"></div></div>
+  <div class="ho-weapons" id="ho-weapons"></div>
+  <div class="ho-status" id="ho-status"></div>
+</div>
+
+<!-- FRIENDLY ENCOUNTER OVERLAY -->
+<div id="friendly-overlay">
+  <div class="fo-header">FRIENDLY CONTACT</div>
+  <div class="fo-name" id="fo-name">WANDERING TRADER</div>
+  <div class="fo-sub" id="fo-sub">NEUTRAL • NON-HOSTILE</div>
+  <div class="fo-dialogue" id="fo-dialogue"></div>
+  <div class="fo-offer" id="fo-offer"></div>
+  <div class="fo-timer">OFFER EXPIRES IN <span id="fo-timer">60</span>s</div>
+  <div class="fo-btns">
+    <button class="pip-btn" style="flex:1;" onclick="acceptOffer()">ACCEPT</button>
+    <button class="pip-btn danger" style="flex:1;" onclick="declineOffer()">DECLINE</button>
+  </div>
+</div>
+
+<!-- DEATH SCREEN -->
+<div id="death-screen">
+  <div class="ds-title">YOU DIED</div>
+  <div class="ds-sub">GAME OVER — ITEMS LOST</div>
+  <div class="ds-lost" id="ds-lost"></div>
+  <button class="pip-btn" style="font-size:16px;padding:14px 32px;" onclick="respawn()">[ CONTINUE ]</button>
 </div>
 
 <!-- TOAST -->
@@ -892,6 +1041,424 @@ function logEncounter(){
 function clearEnc(){ tick(); S.encounters=[]; save(); renderWorld(); }
 
 // ─────────────────────────────────────────────
+// ENCOUNTER ROSTERS
+// ─────────────────────────────────────────────
+const HOSTILE_ROSTER = [
+  { name:'RAIDER',                 hp:30,  playerDmg:15, apCost:15, level:'LOW'      },
+  { name:'FERAL GHOUL',            hp:40,  playerDmg:20, apCost:25, level:'MEDIUM'   },
+  { name:'RADIOACTIVE SUBWAY RAT', hp:55,  playerDmg:28, apCost:30, level:'MEDIUM'   },
+  { name:'SUPER MUTANT',           hp:70,  playerDmg:32, apCost:38, level:'HIGH'     },
+  { name:'DEATHCLAW',              hp:110, playerDmg:45, apCost:55, level:'CRITICAL' },
+];
+
+const FRIENDLY_ROSTER = [
+  {
+    name:'WANDERING TRADER',
+    dialogue:'"GOT SOME SUPPLIES FOR YOU, STRANGER. STAY SAFE OUT THERE."',
+    offers:[{name:'STIMPAK',qty:2,cat:'AID'},{name:'FOOD RATION',qty:2,cat:'AID'}],
+  },
+  {
+    name:'BROTHERHOOD SOLDIER',
+    dialogue:'"AD VICTORIAM. TAKE THIS — YOU LOOK LIKE YOU NEED IT MORE THAN I DO."',
+    offers:[{name:'LASER PISTOL',qty:1,cat:'WEAPONS'},{name:'AMMO',qty:30,cat:'AMMO'}],
+  },
+  {
+    name:'SURVIVOR',
+    dialogue:'"HEY, I FOUND EXTRA SUPPLIES. TAKE WHAT YOU NEED — I OWE YOU ONE."',
+    offers:[{name:'STIMPAK',qty:1,cat:'AID'},{name:'RADAWAY',qty:1,cat:'AID'}],
+  },
+  {
+    name:'MAN BABY',
+    dialogue:'"WAAAAH! HERE TAKE THESE WAAAH PLEASE JUST TAKE THEM WAAAAH."',
+    offers:[{name:'STIMPAK',qty:3,cat:'AID'},{name:'SUBMACHINE GUN',qty:1,cat:'WEAPONS'}],
+  },
+];
+
+// Weapon damage + durability (uses before destroyed)
+const WEAPON_STATS = {
+  'ROCKET LAUNCHER': { damage:55, uses:1 },
+  'SUBMACHINE GUN':  { damage:30, uses:1 },
+  'LASER PISTOL':    { damage:20, uses:2 },
+  'KNIFE':           { damage:10, uses:3 },
+};
+
+// ─────────────────────────────────────────────
+// MOTION DETECTION
+// ─────────────────────────────────────────────
+let motionEnabled = false;
+let accelHistory  = [];
+let runScore      = 0; // 0–100
+
+function enableMotion() {
+  if (typeof DeviceMotionEvent !== 'undefined' &&
+      typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission().then(r => {
+      if (r === 'granted') startMotionListener();
+      else toast('MOTION PERMISSION DENIED', '#ff3b3b');
+    }).catch(()=> toast('MOTION ERROR', '#ff3b3b'));
+  } else {
+    startMotionListener(); // Android / desktop
+  }
+}
+
+function startMotionListener() {
+  motionEnabled = true;
+  document.getElementById('motion-btn').textContent = '✓ MOTION ACTIVE';
+  document.getElementById('motion-btn').classList.add('active-btn');
+  window.addEventListener('devicemotion', e => {
+    const a = e.accelerationIncludingGravity;
+    if (!a) return;
+    const mag = Math.sqrt((a.x||0)**2 + (a.y||0)**2 + (a.z||0)**2);
+    const now = Date.now();
+    accelHistory.push({mag, time:now});
+    accelHistory = accelHistory.filter(p => now - p.time < 2500);
+    if (accelHistory.length > 12) {
+      const avg = accelHistory.reduce((s,p)=>s+p.mag,0) / accelHistory.length;
+      const variance = accelHistory.reduce((s,p)=>s+(p.mag-avg)**2,0) / accelHistory.length;
+      // variance > 28 = running, tune if needed
+      runScore = Math.min(100, variance * 3.2);
+    }
+  });
+  toast('MOTION SENSOR ACTIVE', '#5CF54A');
+}
+
+// ─────────────────────────────────────────────
+// ENCOUNTER SCHEDULING
+// ─────────────────────────────────────────────
+let firstEncounter = true;
+let encTimer = null;
+
+function scheduleNextEncounter() {
+  const minMs = firstEncounter ? 8*60*1000  : 10*60*1000;
+  const maxMs = firstEncounter ? 20*60*1000 : 25*60*1000;
+  const delay = minMs + Math.random() * (maxMs - minMs);
+  firstEncounter = false;
+  encTimer = setTimeout(triggerEncounter, delay);
+  // Show next encounter countdown in world tab (optional debug)
+  console.log(`Next encounter in ${Math.round(delay/60000)} min`);
+}
+
+function triggerEncounter() {
+  // More friendly chance if HP is low
+  const friendlyChance = S.hp.cur < 40 ? 0.5 : 0.28;
+  if (Math.random() < friendlyChance) triggerFriendly();
+  else triggerHostile();
+}
+
+// ─────────────────────────────────────────────
+// HOSTILE ENCOUNTER
+// ─────────────────────────────────────────────
+let activeHostile   = null;  // current enemy object
+let hostileTimer    = null;  // countdown interval
+let hostileSeconds  = 30;
+let runSeconds      = 0;     // accumulated running seconds
+let encounterOver   = false;
+const RUN_NEEDED    = 12;    // seconds of running needed to escape
+
+function triggerHostile() {
+  // Weight: rare enemies less likely early on
+  const survived = S.encounters.length;
+  const pool = HOSTILE_ROSTER.filter(e =>
+    e.level !== 'CRITICAL' || survived > 5
+  );
+  const enemy = pool[Math.floor(Math.random() * pool.length)];
+  activeHostile  = { ...enemy, curHp: enemy.hp };
+  hostileSeconds = 30;
+  runSeconds     = 0;
+  encounterOver  = false;
+
+  // Populate overlay
+  document.getElementById('ho-enemy-name').textContent = activeHostile.name;
+  document.getElementById('ho-enemy-sub').textContent  = `THREAT LEVEL: ${activeHostile.level}`;
+  document.getElementById('ho-status').textContent     = '';
+  document.getElementById('ho-countdown').className    = 'ho-countdown';
+  document.getElementById('ho-run-fill').style.width   = '0%';
+  document.getElementById('ho-run-label').textContent  = motionEnabled
+    ? 'RUN TO ESCAPE' : 'MOTION DISABLED — FLEE MANUALLY';
+
+  renderWeaponButtons();
+  document.getElementById('hostile-overlay').classList.add('open');
+  alert3();
+  logToEncounters(activeHostile.name, 'ONGOING', '', '');
+
+  // Countdown tick
+  hostileTimer = setInterval(hostileTick, 1000);
+}
+
+function renderWeaponButtons() {
+  const weapons = S.inventory.WEAPONS || [];
+  const box = document.getElementById('ho-weapons');
+  if (!weapons.length) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="ho-wep-label">// USE WEAPON //</div>' +
+    weapons.map((w,i) => {
+      const stats = getWeaponStats(w.name);
+      return `<button class="ho-wep-btn" id="wbtn-${i}" onclick="useWeaponInEncounter(${i})">
+        ${w.name} &nbsp;<span style="color:var(--gd);font-size:10px;">[DMG ${stats.damage} | ${w.uses||stats.uses} USE${(w.uses||stats.uses)!==1?'S':''}]</span>
+      </button>`;
+    }).join('');
+}
+
+function getWeaponStats(name) {
+  for (const [key, val] of Object.entries(WEAPON_STATS)) {
+    if (name.toUpperCase().includes(key)) return val;
+  }
+  return { damage: 8, uses: 1 }; // unknown weapon fallback
+}
+
+function useWeaponInEncounter(idx) {
+  if (encounterOver) return;
+  const weapon = S.inventory.WEAPONS[idx];
+  if (!weapon) return;
+
+  const stats = getWeaponStats(weapon.name);
+  const dmg   = stats.damage;
+  activeHostile.curHp -= dmg;
+
+  // Reduce durability
+  weapon.uses = (weapon.uses !== undefined ? weapon.uses : stats.uses) - 1;
+  let wepMsg = '';
+  if (weapon.uses <= 0) {
+    S.inventory.WEAPONS.splice(idx, 1);
+    wepMsg = `${weapon.name} DESTROYED`;
+  } else {
+    wepMsg = `${weapon.name} — ${weapon.uses} USE${weapon.uses!==1?'S':''} LEFT`;
+  }
+  save();
+
+  const btn = document.getElementById('wbtn-'+idx);
+  if (btn) btn.classList.add('used');
+  healBeep();
+
+  if (activeHostile.curHp <= 0) {
+    document.getElementById('ho-status').textContent = `${activeHostile.name} NEUTRALIZED — ${wepMsg}`;
+    resolveHostile('NEUTRALIZED');
+  } else {
+    document.getElementById('ho-status').textContent =
+      `HIT FOR ${dmg} DMG — ENEMY HP: ${Math.max(0,activeHostile.curHp)} — ${wepMsg}`;
+    renderWeaponButtons();
+  }
+}
+
+function hostileTick() {
+  if (encounterOver) return;
+  hostileSeconds--;
+
+  // Check run score
+  if (motionEnabled && runScore > 28) runSeconds++;
+  const runPct = Math.min(100, (runSeconds / RUN_NEEDED) * 100);
+  document.getElementById('ho-run-fill').style.width = runPct + '%';
+  document.getElementById('ho-run-fill').className =
+    'ho-run-fill' + (runScore > 28 ? ' escaping' : '');
+
+  // Update countdown
+  const cdEl = document.getElementById('ho-countdown');
+  cdEl.textContent = Math.max(0, hostileSeconds);
+
+  // Escaped by running?
+  if (runSeconds >= RUN_NEEDED) {
+    cdEl.className = 'ho-countdown safe';
+    resolveHostile('ESCAPED');
+    return;
+  }
+
+  // Time's up
+  if (hostileSeconds <= 0) {
+    resolveHostile('TOOK DAMAGE');
+  }
+}
+
+function resolveHostile(outcome) {
+  encounterOver = true;
+  clearInterval(hostileTimer);
+
+  const enemy = activeHostile;
+  let statMsg = '';
+
+  if (outcome === 'ESCAPED') {
+    const apCost = enemy.apCost;
+    modAP(-apCost);
+    statMsg = `AP -${apCost}`;
+    document.getElementById('ho-status').textContent = 'ESCAPED!';
+    toast('ESCAPED!', '#ff9500');
+  } else if (outcome === 'NEUTRALIZED') {
+    modAP(-10);
+    statMsg = 'NEUTRALIZED — AP -10';
+    toast(`${enemy.name} NEUTRALIZED`, '#5CF54A');
+  } else {
+    // Took damage
+    modHP(-enemy.playerDmg);
+    if (enemy.level === 'HIGH' || enemy.level === 'CRITICAL') damageLimb();
+    statMsg = `HP -${enemy.playerDmg}`;
+    document.getElementById('ho-status').textContent = `TOOK ${enemy.playerDmg} DAMAGE`;
+    alert3();
+    toast(`${enemy.name} ATTACKED — HP -${enemy.playerDmg}`, '#ff3b3b');
+  }
+
+  // Update encounter log
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} ${now.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`.toUpperCase();
+  if (S.encounters.length && S.encounters[0].outcome === 'ONGOING') {
+    S.encounters[0].outcome = outcome;
+    S.encounters[0].statMsg = statMsg;
+    S.encounters[0].time    = time;
+  }
+  save(); renderWorld();
+
+  // Check death
+  if (S.hp.cur <= 0) {
+    setTimeout(()=>{
+      document.getElementById('hostile-overlay').classList.remove('open');
+      triggerDeath();
+    }, 1200);
+    return;
+  }
+
+  setTimeout(()=>{
+    document.getElementById('hostile-overlay').classList.remove('open');
+    scheduleNextEncounter();
+  }, 2000);
+}
+
+function logToEncounters(enemy, outcome, note, statMsg) {
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`.toUpperCase();
+  S.encounters.unshift({enemy, outcome, note, statMsg, time,
+    type: HOSTILE_ROSTER.find(e=>e.name===enemy) ? 'hostile' : 'neutral'});
+  if (S.encounters.length > 40) S.encounters.pop();
+  save(); renderWorld();
+}
+
+// ─────────────────────────────────────────────
+// FRIENDLY ENCOUNTER
+// ─────────────────────────────────────────────
+let activeFriendly  = null;
+let friendlyTimer   = null;
+let friendlySeconds = 60;
+
+function triggerFriendly() {
+  activeFriendly  = FRIENDLY_ROSTER[Math.floor(Math.random() * FRIENDLY_ROSTER.length)];
+  friendlySeconds = 60;
+
+  document.getElementById('fo-name').textContent    = activeFriendly.name;
+  document.getElementById('fo-dialogue').textContent = activeFriendly.dialogue;
+  document.getElementById('fo-offer').textContent   =
+    'OFFERING: ' + activeFriendly.offers.map(o=>`${o.name} x${o.qty}`).join(', ');
+  document.getElementById('fo-timer').textContent   = friendlySeconds;
+  document.getElementById('friendly-overlay').classList.add('open');
+  healBeep();
+  logToEncounters(activeFriendly.name, 'CONTACT', '', '');
+
+  friendlyTimer = setInterval(()=>{
+    friendlySeconds--;
+    document.getElementById('fo-timer').textContent = friendlySeconds;
+    if (friendlySeconds <= 0) declineOffer();
+  }, 1000);
+}
+
+function acceptOffer() {
+  clearInterval(friendlyTimer);
+  if (!activeFriendly) return;
+  activeFriendly.offers.forEach(o => {
+    const cat = S.inventory[o.cat] ? o.cat : 'MISC';
+    S.inventory[cat].push({name: o.name, qty: o.qty});
+  });
+  save(); renderInv();
+  healBeep();
+  toast(`${activeFriendly.name} — ITEMS RECEIVED`, '#5CF54A');
+  if (S.encounters.length && S.encounters[0].outcome==='CONTACT') {
+    S.encounters[0].outcome = 'ACCEPTED';
+    S.encounters[0].statMsg = activeFriendly.offers.map(o=>`+${o.name} x${o.qty}`).join(' ');
+  }
+  save(); renderWorld();
+  document.getElementById('friendly-overlay').classList.remove('open');
+  activeFriendly = null;
+  scheduleNextEncounter();
+}
+
+function declineOffer() {
+  clearInterval(friendlyTimer);
+  document.getElementById('friendly-overlay').classList.remove('open');
+  if (S.encounters.length && S.encounters[0].outcome==='CONTACT') {
+    S.encounters[0].outcome = 'DECLINED';
+  }
+  save(); renderWorld();
+  tick();
+  activeFriendly = null;
+  scheduleNextEncounter();
+}
+
+// ─────────────────────────────────────────────
+// DEATH
+// ─────────────────────────────────────────────
+function triggerDeath() {
+  // Strip all weapons
+  const lostWeapons = [...S.inventory.WEAPONS];
+  S.inventory.WEAPONS = [];
+  S.hp.cur = 5; // survive with barely anything
+  S.limbs = { head:'CRIPPLED', torso:'DAMAGED', larm:'DAMAGED', rarm:'OK', lleg:'DAMAGED', rleg:'OK' };
+  save();
+
+  const lostEl = document.getElementById('ds-lost');
+  if (lostWeapons.length) {
+    lostEl.innerHTML = 'WEAPONS LOST:<br>' +
+      lostWeapons.map(w=>`<span>— ${w.name}</span>`).join('<br>');
+  } else {
+    lostEl.innerHTML = '<span style="color:var(--gd)">NO WEAPONS CARRIED</span>';
+  }
+
+  document.getElementById('death-screen').classList.add('open');
+  alert3();
+}
+
+function respawn() {
+  document.getElementById('death-screen').classList.remove('open');
+  renderStats(); renderInv();
+  scheduleNextEncounter();
+  toast('RESPAWNED — STAY ALERT', '#ff9500');
+}
+
+// ─────────────────────────────────────────────
+// HOLOTAPE DATA IMPORT
+// ─────────────────────────────────────────────
+function loadHolotape(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      let added = [];
+
+      if (data.items && Array.isArray(data.items)) {
+        data.items.forEach(item => {
+          const cat = item.category || item.cat || 'MISC';
+          if (!S.inventory[cat]) S.inventory[cat] = [];
+          S.inventory[cat].push({ name: item.name.toUpperCase(), qty: item.qty || 1 });
+          added.push(item.name);
+        });
+      }
+      if (data.quests && Array.isArray(data.quests)) {
+        data.quests.forEach(q => {
+          S.quests.push({ name: q.name.toUpperCase(), desc: q.desc||'', done: false });
+        });
+      }
+      if (data.notes) {
+        S.notes = (S.notes ? S.notes + '\n\n' : '') + data.notes;
+        document.getElementById('notes-ta').value = S.notes;
+      }
+
+      save(); renderInv(); renderQuests();
+      healBeep();
+      toast(`HOLOTAPE LOADED — ${added.length} ITEM${added.length!==1?'S':''}`, '#5CF54A');
+    } catch(err) {
+      toast('HOLOTAPE READ ERROR', '#ff3b3b');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = ''; // reset so same file can be re-loaded
+}
+
+// ─────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────
 function init(){
@@ -900,6 +1467,7 @@ function init(){
   renderQuests();
   renderWorld();
   document.getElementById('notes-ta').value = S.notes||'';
+  scheduleNextEncounter();
 }
 init();
 </script>

@@ -1,0 +1,16 @@
+{
+  "items": [
+    { "name": "STIMPAK",          "qty": 2,  "category": "AID"     },
+    { "name": "RADAWAY",          "qty": 1,  "category": "AID"     },
+    { "name": "KNIFE",            "qty": 1,  "category": "WEAPONS" },
+    { "name": "FOOD RATION",      "qty": 3,  "category": "AID"     },
+    { "name": "AMMO",             "qty": 50, "category": "AMMO"    }
+  ],
+  "quests": [
+    {
+      "name": "FIND ALL HOLOTAPES",
+      "desc": "Search the neighborhood. Watch for deathclaws."
+    }
+  ],
+  "notes": "Loaded from PAU holotape. Stay alert."
+}
