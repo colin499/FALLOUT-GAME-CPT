@@ -1303,7 +1303,8 @@ function getWeaponImage(name) {
 function weaponImgTag(name, size=40) {
   const src = getWeaponImage(name);
   if (!src) return '';
-  return `<img src="${src}" style="width:${size}px;height:${size}px;object-fit:contain;filter:invert(1) sepia(1) saturate(6) hue-rotate(65deg) brightness(0.9);flex-shrink:0;" draggable="false">`;
+  const encoded = src.replace(/ /g, '%20');
+  return `<img src="${encoded}" style="width:${size}px;height:${size}px;object-fit:contain;filter:invert(1) sepia(1) saturate(6) hue-rotate(65deg) brightness(0.9);flex-shrink:0;" draggable="false">`;
 }
 
 // Weapon damage + durability (uses before destroyed)
