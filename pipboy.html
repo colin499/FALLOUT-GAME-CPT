@@ -337,6 +337,11 @@
 
   .fo-header { font-size:11px; letter-spacing:4px; color:var(--g);
     text-shadow:var(--glow-strong); margin-bottom:8px; }
+  .fo-img {
+    width:120px; height:120px; object-fit:contain; margin-bottom:10px;
+    filter: invert(1) sepia(1) saturate(6) hue-rotate(65deg) brightness(0.95)
+            drop-shadow(0 0 10px #5CF54A);
+  }
   .fo-name   { font-size:26px; letter-spacing:3px; text-shadow:var(--glow-strong);
     margin-bottom:6px; }
   .fo-sub    { font-size:11px; color:var(--gd); letter-spacing:1px; margin-bottom:20px; }
@@ -520,6 +525,7 @@
 <!-- FRIENDLY ENCOUNTER OVERLAY -->
 <div id="friendly-overlay">
   <div class="fo-header">FRIENDLY CONTACT</div>
+  <img id="fo-img" class="fo-img" src="" alt="" style="display:none;" draggable="false">
   <div class="fo-name" id="fo-name">WANDERING TRADER</div>
   <div class="fo-sub" id="fo-sub">NEUTRAL • NON-HOSTILE</div>
   <div class="fo-dialogue" id="fo-dialogue"></div>
@@ -1184,7 +1190,17 @@ const FRIENDLY_ROSTER = [
     dialogue:'"WAAAAH! HERE TAKE THESE WAAAH PLEASE JUST TAKE THEM WAAAAH."',
     offers:[{name:'STIMPAK',qty:3,cat:'AID'},{name:'SUBMACHINE GUN',qty:1,cat:'WEAPONS'}],
   },
+  {
+    name:'NICK VALENTINE',
+    dialogue:'"NAME\'S VALENTINE. SYNTH DETECTIVE, AT YOUR SERVICE. TAKE THIS — YOU\'LL NEED IT MORE THAN I DO."',
+    offers:[{name:'LASER PISTOL',qty:1,cat:'WEAPONS'},{name:'STIMPAK',qty:1,cat:'AID'}],
+  },
 ];
+
+// Friendly images — add more filenames here as you get them
+const FRIENDLY_IMAGES = {
+  'NICK VALENTINE': 'NICK VALENTINE.png',
+};
 
 // Enemy images — add more filenames here as you get them
 const ENEMY_IMAGES = {
@@ -1468,8 +1484,12 @@ function triggerFriendly() {
   activeFriendly  = FRIENDLY_ROSTER[Math.floor(Math.random() * FRIENDLY_ROSTER.length)];
   friendlySeconds = 60;
 
-  document.getElementById('fo-name').textContent    = activeFriendly.name;
-  document.getElementById('fo-dialogue').textContent = activeFriendly.dialogue;
+  document.getElementById('fo-name').textContent     = activeFriendly.name;
+  document.getElementById('fo-dialogue').textContent  = activeFriendly.dialogue;
+  const foImg = document.getElementById('fo-img');
+  const foImgSrc = FRIENDLY_IMAGES[activeFriendly.name];
+  if (foImgSrc) { foImg.src = foImgSrc; foImg.style.display = 'block'; }
+  else           { foImg.style.display = 'none'; }
   document.getElementById('fo-offer').textContent   =
     'OFFERING: ' + activeFriendly.offers.map(o=>`${o.name} x${o.qty}`).join(', ');
   document.getElementById('fo-timer').textContent   = friendlySeconds;
