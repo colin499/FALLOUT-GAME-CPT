@@ -1274,7 +1274,7 @@ function scheduleNextEncounter() {
 
 function triggerEncounter() {
   // More friendly chance if HP is low
-  const friendlyChance = S.hp.cur < 40 ? 0.5 : 0.28;
+  const friendlyChance = S.hp.cur < 40 ? 0.7 : 0.5;
   if (Math.random() < friendlyChance) triggerFriendly();
   else triggerHostile();
 }
