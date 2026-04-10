@@ -1954,6 +1954,7 @@ document.addEventListener('touchstart', startMusicOnce, false);
 document.addEventListener('click',      startMusicOnce, false);
 
 function init(){
+  if (S.hp.cur >= S.hp.max) healLimbs(false);
   renderStats();
   renderInv();
   renderQuests();
