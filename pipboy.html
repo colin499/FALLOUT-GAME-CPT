@@ -156,6 +156,11 @@
     background:rgba(0,0,0,0.7); padding:2px 5px; border:1px solid #5CF54A;
   }
   .pip-pin-label.found { color:#2a7a1e; border-color:#2a7a1e; text-shadow:none; }
+  .pip-loot-label {
+    color:#ffb700; font-family:monospace; font-size:12px; font-weight:bold;
+    white-space:nowrap; text-shadow:0 0 6px #ffb700;
+    background:rgba(0,0,0,0.75); padding:2px 5px; border:1px solid #ffb700;
+  }
 
   /* ───── SPECIAL ───── */
   .special-grid {
@@ -1869,6 +1874,104 @@ function saveMapPins() {
   localStorage.setItem('map_pins', JSON.stringify(mapPins));
 }
 
+// ─────────────────────────────────────────────
+// LOOT CRATE SYSTEM
+// ─────────────────────────────────────────────
+const LOOT_COUNT    = 8;    // crates per wave
+const LOOT_MIN_M    = 60;   // min spawn distance from player
+const LOOT_MAX_M    = 350;  // max spawn distance from player
+const LOOT_DETECT_M = 30;   // collection radius
+
+const LOOT_POOL = [
+  { name:'STIMPAK',      qty:2,  cat:'AID'     },
+  { name:'STIMPAK',      qty:1,  cat:'AID'     },
+  { name:'RADAWAY',      qty:1,  cat:'AID'     },
+  { name:'FOOD RATION',  qty:2,  cat:'AID'     },
+  { name:'FOOD RATION',  qty:1,  cat:'AID'     },
+  { name:'AMMO',         qty:30, cat:'AMMO'    },
+  { name:'AMMO',         qty:15, cat:'AMMO'    },
+  { name:'KNIFE',        qty:1,  cat:'WEAPONS' },
+  { name:'CAPS',         qty:50, cat:'MISC'    },
+  { name:'SCRAP METAL',  qty:1,  cat:'MISC'    },
+  { name:'NUKA-COLA',    qty:1,  cat:'AID'     },
+];
+
+let lootDrops   = [];   // { id, lat, lng, item, collected, _cooldown }
+let lootMarkers = {};   // id -> leaflet marker
+let lootSpawned = false;
+
+function loadLootDrops() {
+  try { lootDrops = JSON.parse(localStorage.getItem('map_loot') || '[]'); } catch(e){ lootDrops=[]; }
+}
+function saveLootDrops() {
+  localStorage.setItem('map_loot', JSON.stringify(lootDrops.map(l => ({...l, _cooldown:false}))));
+}
+
+function spawnLootWave(centerLat, centerLng) {
+  lootDrops = [];
+  for (let i = 0; i < LOOT_COUNT; i++) {
+    const angle   = Math.random() * 2 * Math.PI;
+    const dist    = LOOT_MIN_M + Math.random() * (LOOT_MAX_M - LOOT_MIN_M);
+    const dLat    = (dist * Math.cos(angle)) / 111320;
+    const dLng    = (dist * Math.sin(angle)) / (111320 * Math.cos(centerLat * Math.PI / 180));
+    const item    = LOOT_POOL[Math.floor(Math.random() * LOOT_POOL.length)];
+    lootDrops.push({
+      id: Date.now() + i,
+      lat: centerLat + dLat,
+      lng: centerLng + dLng,
+      item: { ...item },
+      collected: false,
+    });
+  }
+  saveLootDrops();
+  if (leafletMap) {
+    Object.values(lootMarkers).forEach(m => m.remove());
+    lootMarkers = {};
+    lootDrops.forEach(l => addLootMarker(l));
+  }
+  toast(`${LOOT_COUNT} SUPPLY CACHES DETECTED NEARBY`, '#ffb700');
+}
+
+function addLootMarker(loot) {
+  if (!leafletMap || loot.collected) return;
+  const icon = L.divIcon({
+    html: `<div class="pip-loot-label">▣ CACHE</div>`,
+    className: '',
+    iconAnchor: [0, 12],
+  });
+  const marker = L.marker([loot.lat, loot.lng], { icon }).addTo(leafletMap);
+  lootMarkers[loot.id] = marker;
+}
+
+function checkLootProximity(latlng) {
+  let allCollected = true;
+  lootDrops.forEach(loot => {
+    if (loot.collected) return;
+    allCollected = false;
+    if (loot._cooldown) return;
+    const d = haversineM(latlng.lat, latlng.lng, loot.lat, loot.lng);
+    if (d < LOOT_DETECT_M) {
+      loot.collected = true;
+      loot._cooldown = true;
+      saveLootDrops();
+      // Add item to inventory
+      const inv = S.inventory[loot.item.cat];
+      const existing = inv.find(i => i.name === loot.item.name);
+      if (existing) existing.qty += loot.item.qty;
+      else inv.push({ ...loot.item });
+      save(); renderInv();
+      // Remove marker
+      if (lootMarkers[loot.id]) { lootMarkers[loot.id].remove(); delete lootMarkers[loot.id]; }
+      tick();
+      toast(`CACHE FOUND — ${loot.item.qty}x ${loot.item.name}`, '#ffb700');
+    }
+  });
+  // Respawn if all collected
+  if (allCollected && lootDrops.length > 0) {
+    setTimeout(() => spawnLootWave(latlng.lat, latlng.lng), 3000);
+  }
+}
+
 function haversineM(lat1, lng1, lat2, lng2) {
   const R = 6371000, r = Math.PI/180;
   const dLat = (lat2-lat1)*r, dLng = (lng2-lng1)*r;
@@ -1991,10 +2094,20 @@ function initLeafletMap() {
         radius: 8, fillColor: '#5CF54A', color: '#020c01',
         weight: 2, fillOpacity: 1,
       }).addTo(leafletMap);
+      // First GPS lock — spawn loot or restore saved loot
+      if (!lootSpawned) {
+        lootSpawned = true;
+        if (lootDrops.length && lootDrops.some(l => !l.collected)) {
+          lootDrops.forEach(l => addLootMarker(l));
+        } else {
+          spawnLootWave(e.latlng.lat, e.latlng.lng);
+        }
+      }
     } else {
       userMarker.setLatLng(e.latlng);
     }
     checkHolotapeProximity(e.latlng);
+    checkLootProximity(e.latlng);
   });
 
   leafletMap.on('locationerror', e => {
@@ -2042,6 +2155,7 @@ function init(){
   document.getElementById('notes-ta').value = S.notes||'';
   scheduleNextEncounter();
   loadMapPins();
+  loadLootDrops();
   // Init Leaflet when MAP tab is first opened
   document.querySelectorAll('.tab').forEach(t => {
     if (t.dataset.tab === 'map') {
