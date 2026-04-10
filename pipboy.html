@@ -475,6 +475,9 @@
       <div class="bar-top"><span class="lbl">RADIATION</span><span class="val" id="rad-val">0 RAD</span></div>
       <div class="bar-track"><div class="bar-fill rad" id="rad-bar"></div></div>
     </div>
+    <div style="font-size:11px;letter-spacing:2px;color:#ff9500;margin-top:4px;margin-bottom:2px;">
+      ROCKETS: <span id="rocket-count">0</span>
+    </div>
 
     <div class="stat-layout">
       <div style="position:relative; width:110px; flex-shrink:0;">
@@ -1024,6 +1027,7 @@ function renderStats() {
   const radPct = Math.min(100, S.rad.cur/S.rad.max*100);
   document.getElementById('rad-val').textContent = `${S.rad.cur} RAD`;
   document.getElementById('rad-bar').style.width = radPct+'%';
+  document.getElementById('rocket-count').textContent = S.rockets || 0;
 
   // Limbs — text list
   const ll = document.getElementById('limb-list');
@@ -1723,8 +1727,9 @@ function resolveHostile(outcome) {
     statMsg = 'NEUTRALIZED — AP -10';
     if (enemy.name.toUpperCase().includes('SUPER MUTANT')) {
       S.rockets = (S.rockets || 0) + 1;
+      save();
       statMsg += ' — ROCKET FOUND (+1)';
-      toast(`SUPER MUTANT DOWN — ROCKET ACQUIRED`, '#5CF54A');
+      toast(`SUPER MUTANT DOWN — ROCKET ACQUIRED (+1) — TOTAL: ${S.rockets}`, '#5CF54A');
     } else {
       toast(`${enemy.name} NEUTRALIZED`, '#5CF54A');
     }
