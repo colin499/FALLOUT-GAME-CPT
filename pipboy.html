@@ -329,20 +329,38 @@
   .ho-run-fill.escaping { background:#ff9500; box-shadow:0 0 8px #ff950099; }
   .ho-run-fill.safe { background:var(--g); }
 
-  /* weapon buttons during encounter */
-  .ho-weapons { width:100%; max-width:280px; margin-bottom:16px; }
-  .ho-wep-label { font-size:10px; color:var(--gd); letter-spacing:2px; margin-bottom:8px; }
+  /* hostile overlay layout */
+  .ho-main { display:flex; width:100%; gap:10px; align-items:flex-start; margin-bottom:12px; }
+  .ho-center { flex:1; display:flex; flex-direction:column; align-items:center; }
+
+  /* side weapon panel */
+  .ho-weapons { width:90px; flex-shrink:0; display:flex; flex-direction:column; gap:6px; padding-top:4px; }
+  .ho-wep-label { font-size:9px; color:var(--gd); letter-spacing:1px; margin-bottom:4px; text-align:center; }
   .ho-wep-btn {
-    width:100%; padding:10px; margin-bottom:6px;
-    background:transparent; border:1px solid var(--gd); color:var(--g);
-    font-family:inherit; font-size:12px; letter-spacing:2px; cursor:pointer; text-align:left;
+    width:100%; padding:6px 4px; background:transparent;
+    border:1px solid var(--gd); color:var(--g);
+    font-family:inherit; font-size:9px; letter-spacing:1px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:3px;
   }
-  .ho-wep-btn:active { background:var(--gd); }
-  .ho-wep-btn.used { opacity:.4; pointer-events:none; }
+  .ho-wep-btn:active, .ho-wep-btn.selected { background:var(--gx); border-color:var(--g); }
+  .ho-wep-btn.used { opacity:.35; pointer-events:none; }
+
+  /* big red attack button */
+  .ho-attack-btn {
+    width:100%; max-width:320px; padding:22px 0;
+    font-size:26px; letter-spacing:6px; font-family:inherit;
+    background:#ff3b3b; color:#000; border:none; cursor:pointer;
+    font-weight:bold; text-shadow:none;
+    box-shadow:0 0 20px #ff3b3b, 0 0 40px #ff3b3b55;
+    animation:threat-pulse .7s ease-in-out infinite;
+    margin-bottom:10px;
+  }
+  .ho-attack-btn:active { background:#cc0000; }
+  .ho-attack-btn:disabled { background:#555; box-shadow:none; animation:none; color:#333; cursor:default; }
 
   .ho-status {
     font-size:12px; letter-spacing:2px; min-height:18px;
-    color:var(--g); text-shadow:var(--glow); margin-bottom:12px;
+    color:var(--g); text-shadow:var(--glow); margin-bottom:8px;
   }
 
   /* ───── FRIENDLY OVERLAY ───── */
@@ -549,15 +567,20 @@
 <!-- HOSTILE ENCOUNTER OVERLAY -->
 <div id="hostile-overlay">
   <div class="ho-warning">⚠ HOSTILE DETECTED ⚠</div>
-  <img id="ho-enemy-img" class="ho-enemy-img" src="" alt="" style="display:none;" draggable="false">
-  <div class="ho-enemy" id="ho-enemy-name">DEATHCLAW</div>
-  <div class="ho-sub" id="ho-enemy-sub">THREAT LEVEL: CRITICAL</div>
-  <div class="ho-countdown" id="ho-countdown">30</div>
-  <div class="ho-cdown-label">SECONDS TO ESCAPE</div>
-  <div class="ho-run-label" id="ho-run-label">RUN TO ESCAPE</div>
-  <div class="ho-run-track"><div class="ho-run-fill" id="ho-run-fill"></div></div>
-  <div class="ho-weapons" id="ho-weapons"></div>
+  <div class="ho-main">
+    <div class="ho-center">
+      <img id="ho-enemy-img" class="ho-enemy-img" src="" alt="" style="display:none;" draggable="false">
+      <div class="ho-enemy" id="ho-enemy-name">DEATHCLAW</div>
+      <div class="ho-sub" id="ho-enemy-sub">THREAT LEVEL: CRITICAL</div>
+      <div class="ho-countdown" id="ho-countdown">30</div>
+      <div class="ho-cdown-label">SECONDS TO ESCAPE</div>
+      <div class="ho-run-label" id="ho-run-label">RUN TO ESCAPE</div>
+      <div class="ho-run-track"><div class="ho-run-fill" id="ho-run-fill"></div></div>
+    </div>
+    <div class="ho-weapons" id="ho-weapons"></div>
+  </div>
   <div class="ho-status" id="ho-status"></div>
+  <button class="ho-attack-btn" id="ho-attack-btn" onclick="attackWithSelected()">⚔ ATTACK</button>
 </div>
 
 <!-- FRIENDLY ENCOUNTER OVERLAY -->
@@ -1372,13 +1395,11 @@ let firstEncounter = true;
 let encTimer = null;
 
 function scheduleNextEncounter() {
-  const minMs = firstEncounter ? 1*60*1000 : 2*60*1000;
-  const maxMs = firstEncounter ? 3*60*1000 : 5*60*1000;
+  const minMs = firstEncounter ? 30*1000 : 30*1000;
+  const maxMs = firstEncounter ? 90*1000 : 90*1000;
   const delay = minMs + Math.random() * (maxMs - minMs);
   firstEncounter = false;
   encTimer = setTimeout(triggerEncounter, delay);
-  // Show next encounter countdown in world tab (optional debug)
-  console.log(`Next encounter in ${Math.round(delay/60000)} min`);
 }
 
 function triggerEncounter() {
@@ -1439,18 +1460,46 @@ function triggerHostile() {
   hostileTimer = setInterval(hostileTick, 1000);
 }
 
+let selectedWeaponIdx = null;
+
 function renderWeaponButtons() {
   const weapons = S.inventory.WEAPONS || [];
   const box = document.getElementById('ho-weapons');
-  if (!weapons.length) { box.innerHTML = ''; return; }
-  box.innerHTML = '<div class="ho-wep-label">// USE WEAPON //</div>' +
+  if (!weapons.length) { box.innerHTML = '<div class="ho-wep-label">NO WEAPONS</div>'; return; }
+  box.innerHTML = '<div class="ho-wep-label">WEAPON</div>' +
     weapons.map((w,i) => {
       const stats = getWeaponStats(w.name);
-      return `<button class="ho-wep-btn" id="wbtn-${i}" onclick="useWeaponInEncounter(${i})" style="display:flex;align-items:center;gap:10px;">
-        ${weaponImgTag(w.name, 36)}
-        <span>${w.name} &nbsp;<span style="color:var(--gd);font-size:10px;">[DMG ${stats.damage} | ${w.uses||stats.uses} USE${(w.uses||stats.uses)!==1?'S':''}]</span></span>
+      const sel = selectedWeaponIdx === i ? ' selected' : '';
+      return `<button class="ho-wep-btn${sel}" id="wbtn-${i}" onclick="selectWeapon(${i})">
+        ${weaponImgTag(w.name, 38)}
+        <span style="font-size:8px;line-height:1.2;">${w.name}</span>
+        <span style="color:var(--gd);font-size:8px;">DMG ${stats.damage}</span>
       </button>`;
     }).join('');
+}
+
+function selectWeapon(idx) {
+  selectedWeaponIdx = idx;
+  renderWeaponButtons();
+  tick();
+}
+
+function attackWithSelected() {
+  if (encounterOver) return;
+  const btn = document.getElementById('ho-attack-btn');
+  if (selectedWeaponIdx !== null && S.inventory.WEAPONS[selectedWeaponIdx]) {
+    useWeaponInEncounter(selectedWeaponIdx);
+  } else {
+    // Bare hands
+    const dmg = 5;
+    if (!activeHostile) return;
+    activeHostile.curHp = (activeHostile.curHp || activeHostile.hp) - dmg;
+    document.getElementById('ho-status').textContent = `BARE HANDS — ${dmg} DMG`;
+    if (activeHostile.curHp <= 0) resolveEscape('defeated');
+  }
+  // Brief disable to prevent spam
+  btn.disabled = true;
+  setTimeout(() => { if (btn) btn.disabled = false; }, 800);
 }
 
 function getWeaponStats(name) {
