@@ -328,6 +328,15 @@
   }
   .ho-run-fill.escaping { background:#ff9500; box-shadow:0 0 8px #ff950099; }
   .ho-run-fill.safe { background:var(--g); }
+  .ho-hp-label { font-size:10px; letter-spacing:2px; color:var(--gd); margin-bottom:4px; }
+  .ho-hp-track {
+    width:100%; max-width:280px; height:14px;
+    border:1px solid #ff3b3b; background:#1a0000; margin-bottom:10px; border-radius:1px;
+  }
+  .ho-hp-fill {
+    height:100%; background:#ff3b3b; box-shadow:0 0 6px #ff3b3b99;
+    width:100%; transition:width .4s; border-radius:1px;
+  }
 
   /* hostile overlay layout */
   .ho-main { display:flex; width:100%; gap:10px; align-items:flex-start; margin-bottom:12px; }
@@ -572,6 +581,8 @@
       <img id="ho-enemy-img" class="ho-enemy-img" src="" alt="" style="display:none;" draggable="false">
       <div class="ho-enemy" id="ho-enemy-name">DEATHCLAW</div>
       <div class="ho-sub" id="ho-enemy-sub">THREAT LEVEL: CRITICAL</div>
+      <div class="ho-hp-label">ENEMY HP: <span id="ho-hp-cur">--</span> / <span id="ho-hp-max">--</span></div>
+      <div class="ho-hp-track"><div class="ho-hp-fill" id="ho-hp-fill"></div></div>
       <div class="ho-countdown" id="ho-countdown">30</div>
       <div class="ho-cdown-label">SECONDS TO ESCAPE</div>
       <div class="ho-run-label" id="ho-run-label">RUN TO ESCAPE</div>
@@ -1425,6 +1436,16 @@ let runSeconds      = 0;     // accumulated running seconds
 let encounterOver   = false;
 const RUN_NEEDED    = 12;    // seconds of running needed to escape
 
+function updateEnemyHpBar() {
+  if (!activeHostile) return;
+  const cur = Math.max(0, activeHostile.curHp);
+  const max = activeHostile.hp;
+  const pct = Math.max(0, (cur / max) * 100);
+  document.getElementById('ho-hp-cur').textContent = cur;
+  document.getElementById('ho-hp-max').textContent = max;
+  document.getElementById('ho-hp-fill').style.width = pct + '%';
+}
+
 function triggerHostile() {
   // Weight: rare enemies less likely early on
   const survived = S.encounters.length;
@@ -1442,6 +1463,7 @@ function triggerHostile() {
   document.getElementById('ho-enemy-sub').textContent  = `THREAT LEVEL: ${activeHostile.level}`;
   document.getElementById('ho-status').textContent     = '';
   document.getElementById('ho-countdown').className    = 'ho-countdown';
+  updateEnemyHpBar();
   document.getElementById('ho-run-fill').style.width   = '0%';
   document.getElementById('ho-run-label').textContent  = motionEnabled
     ? 'RUN TO ESCAPE' : 'MOTION DISABLED — FLEE MANUALLY';
@@ -1500,6 +1522,7 @@ function attackWithSelected() {
     const dmg = 5;
     if (!activeHostile) return;
     activeHostile.curHp = (activeHostile.curHp || activeHostile.hp) - dmg;
+    updateEnemyHpBar();
     document.getElementById('ho-status').textContent = `BARE HANDS — ${dmg} DMG`;
     if (activeHostile.curHp <= 0) resolveEscape('defeated');
   }
@@ -1539,12 +1562,13 @@ function useWeaponInEncounter(idx) {
   if (btn) btn.classList.add('used');
   healBeep();
 
+  updateEnemyHpBar();
   if (activeHostile.curHp <= 0) {
     document.getElementById('ho-status').textContent = `${activeHostile.name} NEUTRALIZED — ${wepMsg}`;
     resolveHostile('NEUTRALIZED');
   } else {
     document.getElementById('ho-status').textContent =
-      `HIT FOR ${dmg} DMG — ENEMY HP: ${Math.max(0,activeHostile.curHp)} — ${wepMsg}`;
+      `HIT FOR ${dmg} DMG — ${wepMsg}`;
     renderWeaponButtons();
   }
 }
