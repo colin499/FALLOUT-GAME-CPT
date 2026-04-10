@@ -477,22 +477,6 @@
           filter: invert(1) sepia(1) saturate(6) hue-rotate(65deg) brightness(0.95)
                   drop-shadow(0 0 8px #5CF54A);
         ">
-        <!-- Limb damage overlay — viewBox matches actual PNG 500×734 -->
-        <svg id="limb-svg" viewBox="0 0 500 734" preserveAspectRatio="none"
-             style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
-          <!-- HEAD: round head + hair at top-center -->
-          <ellipse id="limb-head"  cx="296" cy="102" rx="84" ry="90" fill="none" fill-opacity="0.45"/>
-          <!-- TORSO: jacket/chest/belly -->
-          <polygon id="limb-torso" points="202,190 388,190 390,398 198,398" fill="none" fill-opacity="0.45"/>
-          <!-- R. ARM: extended thumbs-up arm on LEFT of image -->
-          <polygon id="limb-rarm"  points="200,218 205,388 88,410 32,268" fill="none" fill-opacity="0.45"/>
-          <!-- L. ARM: hand-on-hip arm on RIGHT of image -->
-          <polygon id="limb-larm"  points="382,220 458,232 460,392 378,395" fill="none" fill-opacity="0.45"/>
-          <!-- R. LEG: right leg (left-center in image) -->
-          <polygon id="limb-rleg"  points="168,398 302,400 292,714 155,714" fill="none" fill-opacity="0.45"/>
-          <!-- L. LEG: left leg (right-center in image) -->
-          <polygon id="limb-lleg"  points="282,400 398,400 400,700 275,700" fill="none" fill-opacity="0.45"/>
-        </svg>
       </div>
       <div class="limb-list" id="limb-list"></div>
     </div>
@@ -992,22 +976,6 @@ function renderStats() {
     </div>`;
   }).join('');
 
-  // Limbs — SVG overlay colors
-  LIMB_DEFS.forEach(({id, svgId}) => {
-    const el = document.getElementById(svgId);
-    if (!el) return;
-    const status = S.limbs[id] || 'OK';
-    if (status === 'OK') {
-      el.setAttribute('fill', 'none');
-      el.style.animation = '';
-    } else if (status === 'DAMAGED') {
-      el.setAttribute('fill', '#ff9500');
-      el.style.animation = '';
-    } else {
-      el.setAttribute('fill', '#ff3b3b');
-      el.style.animation = 'threat-pulse 1.2s infinite';
-    }
-  });
 }
 
 
@@ -1016,6 +984,7 @@ function renderStats() {
 // ─────────────────────────────────────────────
 function modHP(delta) {
   S.hp.cur = Math.max(0, Math.min(S.hp.max, S.hp.cur + delta));
+  if (S.hp.cur >= S.hp.max) healLimbs(false);
   save(); renderStats();
 }
 function modAP(delta) {
@@ -1039,9 +1008,9 @@ function damageLimb() {
   }
   save(); renderStats();
 }
-function healLimbs() {
+function healLimbs(andSave=true) {
   Object.keys(S.limbs).forEach(l=>S.limbs[l]='OK');
-  save(); renderStats();
+  if (andSave) { save(); renderStats(); }
 }
 
 // ─────────────────────────────────────────────
