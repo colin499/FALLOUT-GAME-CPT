@@ -2156,12 +2156,13 @@ function initLeafletMap() {
     subdomains: 'abcd',
   }).addTo(leafletMap);
 
-  // GPS tracking
-  leafletMap.locate({ watch: true, enableHighAccuracy: true, setView: true, maxZoom: 17 });
+  // GPS tracking — setView false so manual zoom/pan isn't overridden
+  leafletMap.locate({ watch: true, enableHighAccuracy: true, setView: false });
 
   leafletMap.on('locationfound', e => {
     document.getElementById('map-status').textContent = `GPS: LOCKED  ±${Math.round(e.accuracy)}m`;
     if (!userMarker) {
+      leafletMap.setView(e.latlng, 17);
       userMarker = L.circleMarker(e.latlng, {
         radius: 8, fillColor: '#5CF54A', color: '#020c01',
         weight: 2, fillOpacity: 1,
