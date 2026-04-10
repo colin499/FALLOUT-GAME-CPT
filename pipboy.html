@@ -1636,7 +1636,6 @@ function triggerHostile() {
   document.getElementById('hostile-overlay').classList.add('open');
   alert3();
   startSuspenseMusic();
-  setTimeout(() => speak(activeHostile.name), 800);
   logToEncounters(activeHostile.name, 'ONGOING', '', '');
 
   // Countdown tick
@@ -1921,7 +1920,6 @@ function triggerFriendly() {
   document.getElementById('fo-timer').textContent   = friendlySeconds;
   document.getElementById('friendly-overlay').classList.add('open');
   healBeep();
-  setTimeout(() => speak(activeFriendly.name), 600);
   logToEncounters(activeFriendly.name, 'CONTACT', '', '');
 
   friendlyTimer = setInterval(()=>{
