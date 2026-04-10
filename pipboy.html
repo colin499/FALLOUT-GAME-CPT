@@ -1453,10 +1453,11 @@ function triggerHostile() {
     e.level !== 'CRITICAL' || survived > 5
   );
   const enemy = pool[Math.floor(Math.random() * pool.length)];
-  activeHostile  = { ...enemy, curHp: enemy.hp };
-  hostileSeconds = 30;
-  runSeconds     = 0;
-  encounterOver  = false;
+  activeHostile      = { ...enemy, curHp: enemy.hp };
+  hostileSeconds     = 30;
+  runSeconds         = 0;
+  encounterOver      = false;
+  selectedWeaponIdx  = null;
 
   // Populate overlay
   document.getElementById('ho-enemy-name').textContent = activeHostile.name;
@@ -1524,7 +1525,7 @@ function attackWithSelected() {
     activeHostile.curHp = (activeHostile.curHp || activeHostile.hp) - dmg;
     updateEnemyHpBar();
     document.getElementById('ho-status').textContent = `BARE HANDS — ${dmg} DMG`;
-    if (activeHostile.curHp <= 0) resolveEscape('defeated');
+    if (activeHostile.curHp <= 0) resolveHostile('NEUTRALIZED');
   }
   // Brief disable to prevent spam
   btn.disabled = true;
@@ -1562,8 +1563,9 @@ function useWeaponInEncounter(idx) {
   if (btn) btn.classList.add('used');
   healBeep();
 
-  updateEnemyHpBar();
   if (activeHostile.curHp <= 0) {
+    activeHostile.curHp = 0;
+    updateEnemyHpBar();
     document.getElementById('ho-status').textContent = `${activeHostile.name} NEUTRALIZED — ${wepMsg}`;
     resolveHostile('NEUTRALIZED');
   } else {
