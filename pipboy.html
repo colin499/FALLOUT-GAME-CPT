@@ -1814,19 +1814,16 @@ function acceptOffer() {
   if (!activeFriendly) return;
   activeFriendly.offers.forEach(o => {
     const cat = S.inventory[o.cat] ? o.cat : 'MISC';
-    if (cat === 'WEAPONS') {
-      const stats = getWeaponStats(o.name);
-      const existing = S.inventory.WEAPONS.find(w =>
-        w.name.toUpperCase() === o.name.toUpperCase() &&
-        (w.uses === undefined || w.uses > 0) &&
-        !stats.usesAmmo && !stats.usesRockets
-      );
-      if (existing) { toast(`ALREADY HAVE ${o.name} — SKIPPED`, '#ff9500'); return; }
-    }
     const inv = S.inventory[cat];
-    const existing = cat !== 'WEAPONS' && inv.find(i => i.name.toUpperCase() === o.name.toUpperCase());
-    if (existing) existing.qty += o.qty;
-    else inv.push({name: o.name, qty: o.qty});
+    if (cat === 'WEAPONS') {
+      const hasIt = inv.find(w => w.name.toUpperCase() === o.name.toUpperCase());
+      if (hasIt) { toast(`ALREADY HAVE ${o.name} — SKIPPED`, '#ff9500'); return; }
+      inv.push({name: o.name, qty: o.qty});
+    } else {
+      const existing = inv.find(i => i.name.toUpperCase() === o.name.toUpperCase());
+      if (existing) existing.qty += o.qty;
+      else inv.push({name: o.name, qty: o.qty});
+    }
   });
   save(); renderInv();
   healBeep();
@@ -2025,9 +2022,15 @@ function checkLootProximity(latlng) {
       saveLootDrops();
       // Add item to inventory
       const inv = S.inventory[loot.item.cat];
-      const existing = inv.find(i => i.name === loot.item.name);
-      if (existing) existing.qty += loot.item.qty;
-      else inv.push({ ...loot.item });
+      if (loot.item.cat === 'WEAPONS') {
+        const hasIt = inv.find(w => w.name.toUpperCase() === loot.item.name.toUpperCase());
+        if (hasIt) { toast(`ALREADY HAVE ${loot.item.name} — CACHE SKIPPED`, '#ff9500'); }
+        else inv.push({ ...loot.item });
+      } else {
+        const existing = inv.find(i => i.name === loot.item.name);
+        if (existing) existing.qty += loot.item.qty;
+        else inv.push({ ...loot.item });
+      }
       save(); renderInv();
       // Remove marker
       if (lootMarkers[loot.id]) { lootMarkers[loot.id].remove(); delete lootMarkers[loot.id]; }
