@@ -1934,7 +1934,19 @@ function acceptOffer() {
   if (!activeFriendly) return;
   activeFriendly.offers.forEach(o => {
     const cat = S.inventory[o.cat] ? o.cat : 'MISC';
-    S.inventory[cat].push({name: o.name, qty: o.qty});
+    if (cat === 'WEAPONS') {
+      const stats = getWeaponStats(o.name);
+      const existing = S.inventory.WEAPONS.find(w =>
+        w.name.toUpperCase() === o.name.toUpperCase() &&
+        (w.uses === undefined || w.uses > 0) &&
+        !stats.usesAmmo && !stats.usesRockets
+      );
+      if (existing) { toast(`ALREADY HAVE ${o.name} — SKIPPED`, '#ff9500'); return; }
+    }
+    const inv = S.inventory[cat];
+    const existing = cat !== 'WEAPONS' && inv.find(i => i.name.toUpperCase() === o.name.toUpperCase());
+    if (existing) existing.qty += o.qty;
+    else inv.push({name: o.name, qty: o.qty});
   });
   save(); renderInv();
   healBeep();
