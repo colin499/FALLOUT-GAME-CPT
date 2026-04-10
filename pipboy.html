@@ -361,16 +361,16 @@
 
   /* big red attack button */
   .ho-attack-btn {
-    width:100%; max-width:320px; padding:22px 0;
-    font-size:26px; letter-spacing:6px; font-family:inherit;
-    background:#ff3b3b; color:#000; border:none; cursor:pointer;
-    font-weight:bold; text-shadow:none;
-    box-shadow:0 0 20px #ff3b3b, 0 0 40px #ff3b3b55;
+    width:110px; height:110px; border-radius:50%;
+    font-size:13px; letter-spacing:3px; font-family:inherit;
+    background:#ff3b3b; color:#000; border:4px solid #cc0000; cursor:pointer;
+    font-weight:bold; flex-shrink:0; align-self:center;
+    box-shadow:0 0 24px #ff3b3b, 0 0 50px #ff3b3b55;
     animation:threat-pulse .7s ease-in-out infinite;
-    margin-bottom:10px;
+    display:flex; align-items:center; justify-content:center; text-align:center; line-height:1.2;
   }
-  .ho-attack-btn:active { background:#cc0000; }
-  .ho-attack-btn:disabled { background:#555; box-shadow:none; animation:none; color:#333; cursor:default; }
+  .ho-attack-btn:active { background:#cc0000; transform:scale(0.95); }
+  .ho-attack-btn:disabled { background:#555; border-color:#333; box-shadow:none; animation:none; color:#333; cursor:default; }
 
   .ho-status {
     font-size:12px; letter-spacing:2px; min-height:18px;
@@ -578,9 +578,9 @@
       <div class="ho-run-track"><div class="ho-run-fill" id="ho-run-fill"></div></div>
     </div>
     <div class="ho-weapons" id="ho-weapons"></div>
+    <button class="ho-attack-btn" id="ho-attack-btn" onclick="attackWithSelected()">⚔<br>ATTACK</button>
   </div>
   <div class="ho-status" id="ho-status"></div>
-  <button class="ho-attack-btn" id="ho-attack-btn" onclick="attackWithSelected()">⚔ ATTACK</button>
 </div>
 
 <!-- FRIENDLY ENCOUNTER OVERLAY -->
