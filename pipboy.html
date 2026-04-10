@@ -796,30 +796,9 @@ function sndLaserPistol() {
 }
 
 function sndRocketLauncher() {
-  const c = ac(), t = c.currentTime;
-  // Whoosh launch
-  const buf = c.createBuffer(1, c.sampleRate * 0.6, c.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (c.sampleRate * 0.15));
-  const src = c.createBufferSource(); src.buffer = buf;
-  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400;
-  const g = c.createGain(); g.gain.setValueAtTime(0.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
-  src.connect(lp); lp.connect(g); g.connect(c.destination); src.start(t); src.stop(t + 0.6);
-  // Deep boom explosion after 0.3s
-  setTimeout(() => {
-    const t2 = c.currentTime;
-    const buf2 = c.createBuffer(1, c.sampleRate * 0.8, c.sampleRate);
-    const d2 = buf2.getChannelData(0);
-    for (let i = 0; i < d2.length; i++) d2[i] = (Math.random() * 2 - 1);
-    const src2 = c.createBufferSource(); src2.buffer = buf2;
-    const lp2 = c.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 180;
-    const g2 = c.createGain(); g2.gain.setValueAtTime(0.9, t2); g2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.75);
-    src2.connect(lp2); lp2.connect(g2); g2.connect(c.destination); src2.start(t2); src2.stop(t2 + 0.8);
-    // rumble sub-bass
-    const sub = c.createOscillator(); sub.type = 'sine'; sub.frequency.value = 55;
-    const sg = c.createGain(); sg.gain.setValueAtTime(0.5, t2); sg.gain.exponentialRampToValueAtTime(0.001, t2 + 0.6);
-    sub.connect(sg); sg.connect(c.destination); sub.start(t2); sub.stop(t2 + 0.65);
-  }, 300);
+  const audio = new Audio('delon_boomkin-rocket-launcher-missile-imp-454370.mp3');
+  audio.volume = 0.9;
+  audio.play().catch(() => {});
 }
 
 function sndKnife() {
