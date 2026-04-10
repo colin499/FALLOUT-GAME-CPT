@@ -344,11 +344,12 @@
   }
 
   /* hostile overlay layout */
-  .ho-main { display:flex; width:100%; gap:10px; align-items:flex-start; margin-bottom:12px; }
-  .ho-center { flex:1; display:flex; flex-direction:column; align-items:center; }
+  .ho-main   { display:flex; flex-direction:column; width:100%; align-items:center; gap:10px; margin-bottom:10px; }
+  .ho-center { width:100%; display:flex; flex-direction:column; align-items:center; }
+  .ho-bottom { display:flex; width:100%; gap:12px; align-items:center; justify-content:center; }
 
   /* side weapon panel */
-  .ho-weapons { width:90px; flex-shrink:0; display:flex; flex-direction:column; gap:6px; padding-top:4px; }
+  .ho-weapons { flex:1; max-width:160px; display:flex; flex-direction:column; gap:6px; }
   .ho-wep-label { font-size:9px; color:var(--gd); letter-spacing:1px; margin-bottom:4px; text-align:center; }
   .ho-wep-btn {
     width:100%; padding:6px 4px; background:transparent;
@@ -577,8 +578,10 @@
       <div class="ho-run-label" id="ho-run-label">RUN TO ESCAPE</div>
       <div class="ho-run-track"><div class="ho-run-fill" id="ho-run-fill"></div></div>
     </div>
-    <div class="ho-weapons" id="ho-weapons"></div>
-    <button class="ho-attack-btn" id="ho-attack-btn" onclick="attackWithSelected()">⚔<br>ATTACK</button>
+    <div class="ho-bottom">
+      <div class="ho-weapons" id="ho-weapons"></div>
+      <button class="ho-attack-btn" id="ho-attack-btn" onclick="attackWithSelected()">⚔<br>ATTACK</button>
+    </div>
   </div>
   <div class="ho-status" id="ho-status"></div>
 </div>
