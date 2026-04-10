@@ -1413,7 +1413,7 @@ function triggerHostile() {
   const imgEl = document.getElementById('ho-enemy-img');
   const imgSrc = ENEMY_IMAGES[activeHostile.name];
   if (imgSrc) {
-    imgEl.src = imgSrc;
+    imgEl.src = imgSrc.replace(/ /g, '%20');
     imgEl.style.display = 'block';
   } else {
     imgEl.style.display = 'none';
@@ -1588,7 +1588,7 @@ function triggerFriendly() {
   document.getElementById('fo-dialogue').textContent  = activeFriendly.dialogue;
   const foImg = document.getElementById('fo-img');
   const foImgSrc = FRIENDLY_IMAGES[activeFriendly.name];
-  if (foImgSrc) { foImg.src = foImgSrc; foImg.style.display = 'block'; }
+  if (foImgSrc) { foImg.src = foImgSrc.replace(/ /g, '%20'); foImg.style.display = 'block'; }
   else           { foImg.style.display = 'none'; }
   document.getElementById('fo-offer').innerHTML =
     '<div style="font-size:10px;color:var(--gd);margin-bottom:6px;">OFFERING:</div>' +
