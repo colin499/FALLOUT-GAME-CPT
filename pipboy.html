@@ -778,26 +778,14 @@ function healBeep() {
 }
 
 function sndSubmachineGun() {
-  const c = ac(), t = c.currentTime;
-  // 5 rapid noise pops
-  for (let i = 0; i < 5; i++) {
-    const buf = c.createBuffer(1, c.sampleRate * 0.04, c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let j = 0; j < d.length; j++) d[j] = (Math.random() * 2 - 1);
-    const src = c.createBufferSource(); src.buffer = buf;
-    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
-    const g = c.createGain();
-    const s = t + i * 0.07;
-    g.gain.setValueAtTime(0.4, s);
-    g.gain.exponentialRampToValueAtTime(0.001, s + 0.04);
-    src.connect(lp); lp.connect(g); g.connect(c.destination);
-    src.start(s); src.stop(s + 0.05);
-    // shell casing click
-    const click = c.createOscillator(); click.type = 'sine'; click.frequency.value = 900;
-    const cg = c.createGain();
-    cg.gain.setValueAtTime(0.08, s + 0.02);
-    cg.gain.exponentialRampToValueAtTime(0.001, s + 0.04);
-    click.connect(cg); cg.connect(c.destination); click.start(s + 0.02); click.stop(s + 0.04);
+  const shots = 5;
+  const interval = 120; // ms between shots
+  for (let i = 0; i < shots; i++) {
+    setTimeout(() => {
+      const audio = new Audio('universfield-gunshot-352466.mp3');
+      audio.volume = 0.7;
+      audio.play().catch(() => {});
+    }, i * interval);
   }
 }
 
@@ -846,13 +834,19 @@ function sndKnife() {
   src.connect(hp); hp.connect(g); g.connect(c.destination); src.start(t); src.stop(t + 0.12);
 }
 
+function sndPistol() {
+  const audio = new Audio('universfield-gunshot-352466.mp3');
+  audio.volume = 0.8;
+  audio.play().catch(() => {});
+}
+
 function playWeaponSound(weaponName) {
   const n = weaponName.toUpperCase();
   if (n.includes('SUBMACHINE')) sndSubmachineGun();
   else if (n.includes('LASER'))  sndLaserPistol();
   else if (n.includes('ROCKET')) sndRocketLauncher();
   else if (n.includes('KNIFE'))  sndKnife();
-  else sndSubmachineGun(); // fallback for unknown guns
+  else sndPistol(); // fallback — single gunshot
 }
 
 // ─────────────────────────────────────────────
