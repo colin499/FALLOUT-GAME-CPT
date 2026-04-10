@@ -1078,6 +1078,11 @@ function updateFleeBtn(){
 // ─────────────────────────────────────────────
 function renderInv(){
   const c = document.getElementById('inv-cats');
+  // preserve which categories are currently open
+  const openCats = new Set(Object.keys(S.inventory).filter(cat=>{
+    const el = document.getElementById('ci-'+cat);
+    return el && el.classList.contains('open');
+  }));
   c.innerHTML = '';
   Object.keys(S.inventory).forEach(cat=>{
     const items = S.inventory[cat]||[];
@@ -1102,6 +1107,7 @@ function renderInv(){
       </div>
     `;
     c.appendChild(el);
+    if(openCats.has(cat)) document.getElementById('ci-'+cat).classList.add('open');
   });
 }
 
