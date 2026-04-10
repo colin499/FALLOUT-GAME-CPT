@@ -402,9 +402,15 @@
     <div class="hdr-title">PIP-BOY 3000</div>
     <div class="hdr-sub">ROBCO INDUSTRIES (TM) MK V</div>
   </div>
-  <div id="hdr-right">
-    <div id="clock">00:00:00</div>
-    <div id="date-disp">---</div>
+  <div id="hdr-right" style="display:flex;align-items:center;gap:10px;">
+    <button id="snd-btn" onclick="startMusicOnce()" style="
+      font-family:inherit;font-size:9px;letter-spacing:2px;
+      background:transparent;border:1px solid var(--g);color:var(--g);
+      padding:3px 7px;cursor:pointer;">▶ SOUND</button>
+    <div>
+      <div id="clock">00:00:00</div>
+      <div id="date-disp">---</div>
+    </div>
   </div>
 </div>
 
@@ -707,7 +713,11 @@ function save() { localStorage.setItem(SK, JSON.stringify(S)); }
 // AUDIO
 // ─────────────────────────────────────────────
 let actx = null;
-function ac() { if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+function ac() {
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
 
 function tick() {
   const c=ac(), t=c.currentTime;
@@ -1881,15 +1891,17 @@ function initLeafletMap() {
 // ─────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────
-// Start music on first user interaction (browser autoplay policy)
+// Start music + keep AudioContext alive on iOS
 let musicStarted = false;
 function startMusicOnce() {
+  if (actx && actx.state === 'suspended') actx.resume();
   if (musicStarted) return;
   musicStarted = true;
   startSuspenseMusic();
+  document.getElementById('snd-btn').style.display = 'none';
 }
-document.addEventListener('touchstart', startMusicOnce, { once: true });
-document.addEventListener('click',      startMusicOnce, { once: true });
+document.addEventListener('touchstart', startMusicOnce, false);
+document.addEventListener('click',      startMusicOnce, false);
 
 function init(){
   renderStats();
