@@ -1301,6 +1301,109 @@ const FRIENDLY_ROSTER = [
   },
 ];
 
+// ─────────────────────────────────────────────
+// CHARACTER SPEECH
+// ─────────────────────────────────────────────
+const CHARACTER_SPEECH = {
+  // Hostiles
+  'SUPER MUTANT': {
+    lines: [
+      'HUMAN WEAK. SUPER MUTANT STRONG.',
+      'ME SMELL HUMAN. COME OUT.',
+      'SUPER MUTANT CRUSH YOU.',
+      'YOU CANNOT HIDE FROM SUPER MUTANT.',
+    ],
+    pitch: 0.3, rate: 0.65, volume: 1,
+  },
+  'RAIDER': {
+    lines: [
+      'Hand over your caps. Now.',
+      'Dead wastelanders carry no grudges.',
+      'This is your only warning, traveler.',
+      'You picked the wrong ruins to walk through.',
+    ],
+    pitch: 0.85, rate: 1.15, volume: 1,
+  },
+  'DEATHCLAW': {
+    lines: [
+      'RAAAAGH.',
+      'You smell like prey.',
+    ],
+    pitch: 0.1, rate: 0.5, volume: 1,
+  },
+  'FERAL GHOUL': {
+    lines: [
+      'HRRAAAGH.',
+      'BRAAINS. BRAAAINS.',
+      'SKREEEEEE.',
+    ],
+    pitch: 1.6, rate: 1.4, volume: 1,
+  },
+  'RADIOACTIVE SUBWAY RAT': {
+    lines: [
+      'SKREEEEE.',
+      'HISSSSS.',
+    ],
+    pitch: 2.0, rate: 1.5, volume: 1,
+  },
+  // Friendlies
+  'NICK VALENTINE': {
+    lines: [
+      "Name's Valentine. Synth detective. Try not to get killed.",
+      "You look like trouble. I like that.",
+      "The wasteland keeps throwing us together. Take what you need.",
+      "I've seen worse. Not much worse, but worse.",
+    ],
+    pitch: 0.9, rate: 0.88, volume: 1,
+  },
+  'WANDERING TRADER': {
+    lines: [
+      "Got supplies if you got the will to survive.",
+      "Best prices in the wasteland. Take it or leave it.",
+      "Stay sharp out there. Caps won't save you from a deathclaw.",
+    ],
+    pitch: 1.05, rate: 1.0, volume: 1,
+  },
+  'BROTHERHOOD SOLDIER': {
+    lines: [
+      "Ad Victoriam. Take these supplies, civilian.",
+      "The Brotherhood protects the wasteland. Even from itself.",
+      "Stand firm. The Brotherhood does not retreat.",
+    ],
+    pitch: 0.85, rate: 0.92, volume: 1,
+  },
+  'SURVIVOR': {
+    lines: [
+      "Found extra. You need it more than I do.",
+      "Watch your back out there. Seriously.",
+      "We look out for each other. That's all we have left.",
+    ],
+    pitch: 1.0, rate: 1.0, volume: 1,
+  },
+  'MAN BABY': {
+    lines: [
+      "Citizen. I have arrived. You are welcome.",
+      "Fear not. Man Baby is here.",
+      "I assessed the situation. You needed help. Obviously.",
+      "Do not stare. It is impolite.",
+    ],
+    pitch: 1.2, rate: 0.92, volume: 1,
+  },
+};
+
+function speak(name) {
+  if (!window.speechSynthesis) return;
+  const config = CHARACTER_SPEECH[name];
+  if (!config) return;
+  window.speechSynthesis.cancel();
+  const line = config.lines[Math.floor(Math.random() * config.lines.length)];
+  const utt  = new SpeechSynthesisUtterance(line);
+  utt.pitch  = config.pitch;
+  utt.rate   = config.rate;
+  utt.volume = config.volume;
+  window.speechSynthesis.speak(utt);
+}
+
 // Friendly images — add more filenames here as you get them
 const FRIENDLY_IMAGES = {
   'NICK VALENTINE':     'NICK VALENTINE.png',
@@ -1461,6 +1564,7 @@ function triggerHostile() {
   document.getElementById('hostile-overlay').classList.add('open');
   alert3();
   startSuspenseMusic();
+  setTimeout(() => speak(activeHostile.name), 800);
   logToEncounters(activeHostile.name, 'ONGOING', '', '');
 
   // Countdown tick
@@ -1744,6 +1848,7 @@ function triggerFriendly() {
   document.getElementById('fo-timer').textContent   = friendlySeconds;
   document.getElementById('friendly-overlay').classList.add('open');
   healBeep();
+  setTimeout(() => speak(activeFriendly.name), 600);
   logToEncounters(activeFriendly.name, 'CONTACT', '', '');
 
   friendlyTimer = setInterval(()=>{
