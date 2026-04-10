@@ -143,7 +143,7 @@
   #panel-map.on { display:flex; flex-direction:column; gap:10px; }
   #map-leaflet {
     width: calc(100% + 28px); height: 460px; margin: 0 -14px;
-    filter: invert(1) sepia(1) saturate(3) hue-rotate(65deg) brightness(0.9);
+    filter: invert(1) sepia(1) saturate(3) hue-rotate(65deg) brightness(1.1);
     border-top:1px solid var(--g); border-bottom:1px solid var(--g);
   }
   #map-controls { display:flex; flex-direction:column; gap:6px; }
@@ -711,6 +711,7 @@ function defaultState() {
     limbs: { head:'OK', torso:'OK', larm:'OK', rarm:'OK', lleg:'OK', rleg:'OK' },
     special: { S:5, P:5, E:5, C:5, I:5, A:5, L:5 },
     inventory: { WEAPONS:[], APPAREL:[], AID:[], AMMO:[], MISC:[] },
+    rockets: 0,
     quests: [],
     notes: '',
     encounters: [],
@@ -1326,12 +1327,12 @@ function weaponImgTag(name, size=40) {
   return `<img src="${encoded}" style="width:${size}px;height:${size}px;object-fit:contain;filter:invert(1) sepia(1) saturate(6) hue-rotate(65deg) brightness(0.9);flex-shrink:0;" draggable="false">`;
 }
 
-// Weapon damage + durability (uses before destroyed)
+// Weapon stats — usesAmmo=true: consumes regular ammo; usesRockets=true: consumes rockets; uses: durability
 const WEAPON_STATS = {
-  'ROCKET LAUNCHER': { damage:55, uses:1 },
-  'SUBMACHINE GUN':  { damage:30, uses:1 },
-  'LASER PISTOL':    { damage:20, uses:2 },
-  'KNIFE':           { damage:10, uses:3 },
+  'ROCKET LAUNCHER': { damage:999, usesRockets:true },
+  'SUBMACHINE GUN':  { damage:30,  usesAmmo:true },
+  'LASER PISTOL':    { damage:20,  usesAmmo:true },
+  'KNIFE':           { damage:10,  uses:3 },
 };
 
 // ─────────────────────────────────────────────
@@ -1398,12 +1399,13 @@ function triggerEncounter() {
 // ─────────────────────────────────────────────
 // HOSTILE ENCOUNTER
 // ─────────────────────────────────────────────
-let activeHostile   = null;  // current enemy object
-let hostileTimer    = null;  // countdown interval
-let hostileSeconds  = 30;
-let runSeconds      = 0;     // accumulated running seconds
-let encounterOver   = false;
-const RUN_NEEDED    = 12;    // seconds of running needed to escape
+let activeHostile      = null;  // current enemy object
+let hostileTimer       = null;  // countdown interval
+let hostileSeconds     = 30;
+let runSeconds         = 0;     // accumulated running seconds
+let encounterOver      = false;
+let deathclawRocketHits = 0;   // rockets landed on deathclaw this encounter
+const RUN_NEEDED       = 12;   // seconds of running needed to escape
 
 function updateEnemyHpBar() {
   if (!activeHostile) return;
@@ -1422,11 +1424,12 @@ function triggerHostile() {
     e.level !== 'CRITICAL' || survived > 5
   );
   const enemy = pool[Math.floor(Math.random() * pool.length)];
-  activeHostile      = { ...enemy, curHp: enemy.hp };
-  hostileSeconds     = 30;
-  runSeconds         = 0;
-  encounterOver      = false;
-  selectedWeaponIdx  = null;
+  activeHostile        = { ...enemy, curHp: enemy.hp };
+  hostileSeconds       = 30;
+  runSeconds           = 0;
+  encounterOver        = false;
+  selectedWeaponIdx    = null;
+  deathclawRocketHits  = 0;
 
   // Populate overlay
   document.getElementById('ho-enemy-name').textContent = activeHostile.name;
@@ -1464,14 +1467,30 @@ function renderWeaponButtons() {
   const weapons = S.inventory.WEAPONS || [];
   const box = document.getElementById('ho-weapons');
   if (!weapons.length) { box.innerHTML = '<div class="ho-wep-label">NO WEAPONS</div>'; return; }
+  const totalAmmo = getTotalAmmo();
+  const rockets   = getRockets();
   box.innerHTML = '<div class="ho-wep-label">WEAPON</div>' +
     weapons.map((w,i) => {
-      const stats = getWeaponStats(w.name);
-      const sel = selectedWeaponIdx === i ? ' selected' : '';
-      return `<button class="ho-wep-btn${sel}" id="wbtn-${i}" onclick="selectWeapon(${i})">
+      const stats  = getWeaponStats(w.name);
+      const sel    = selectedWeaponIdx === i ? ' selected' : '';
+      let ammoLine = '';
+      let noAmmo   = false;
+      if (stats.usesRockets) {
+        ammoLine = `<span style="color:${rockets>0?'#ff9500':'#ff3b3b'};font-size:8px;">ROCKETS: ${rockets}</span>`;
+        noAmmo = rockets <= 0;
+      } else if (stats.usesAmmo) {
+        ammoLine = `<span style="color:${totalAmmo>0?'var(--gd)':'#ff3b3b'};font-size:8px;">AMMO: ${totalAmmo}</span>`;
+        noAmmo = totalAmmo <= 0;
+      } else {
+        const uses = w.uses !== undefined ? w.uses : stats.uses;
+        ammoLine = `<span style="color:var(--gd);font-size:8px;">USES: ${uses}</span>`;
+      }
+      const disabled = noAmmo ? ' used' : '';
+      return `<button class="ho-wep-btn${sel}${disabled}" id="wbtn-${i}" onclick="selectWeapon(${i})">
         ${weaponImgTag(w.name, 38)}
         <span style="font-size:8px;line-height:1.2;">${w.name}</span>
-        <span style="color:var(--gd);font-size:8px;">DMG ${stats.damage}</span>
+        <span style="color:var(--gd);font-size:8px;">DMG ${stats.damage === 999 ? '∞' : stats.damage}</span>
+        ${ammoLine}
       </button>`;
     }).join('');
 }
@@ -1505,41 +1524,93 @@ function getWeaponStats(name) {
   for (const [key, val] of Object.entries(WEAPON_STATS)) {
     if (name.toUpperCase().includes(key)) return val;
   }
-  return { damage: 8, uses: 1 }; // unknown weapon fallback
+  return { damage: 8, usesAmmo: true }; // unknown weapon fallback uses ammo
 }
+
+function getTotalAmmo() {
+  return (S.inventory.AMMO || []).reduce((sum, item) => sum + (item.qty || 0), 0);
+}
+
+function consumeAmmo(n) {
+  let remaining = n;
+  for (const item of (S.inventory.AMMO || [])) {
+    if (remaining <= 0) break;
+    const take = Math.min(item.qty, remaining);
+    item.qty -= take;
+    remaining -= take;
+  }
+  S.inventory.AMMO = S.inventory.AMMO.filter(item => item.qty > 0);
+  save();
+}
+
+function getRockets() { return S.rockets || 0; }
+
+function consumeRocket() { S.rockets = Math.max(0, (S.rockets || 0) - 1); save(); }
 
 function useWeaponInEncounter(idx) {
   if (encounterOver) return;
   const weapon = S.inventory.WEAPONS[idx];
   if (!weapon) return;
 
-  const stats = getWeaponStats(weapon.name);
-  const dmg   = stats.damage;
-  activeHostile.curHp -= dmg;
+  const stats  = getWeaponStats(weapon.name);
+  let wepMsg   = '';
+  let killed   = false;
 
-  // Reduce durability
-  weapon.uses = (weapon.uses !== undefined ? weapon.uses : stats.uses) - 1;
-  let wepMsg = '';
-  if (weapon.uses <= 0) {
-    S.inventory.WEAPONS.splice(idx, 1);
-    wepMsg = `${weapon.name} DESTROYED`;
+  // ── ROCKET LAUNCHER ──────────────────────────
+  if (stats.usesRockets) {
+    if (getRockets() <= 0) {
+      document.getElementById('ho-status').textContent = 'NO ROCKETS!';
+      return;
+    }
+    consumeRocket();
+    const isDeathclaw = activeHostile.name.toUpperCase().includes('DEATHCLAW');
+    if (isDeathclaw) {
+      deathclawRocketHits++;
+      activeHostile.curHp = Math.max(0, activeHostile.hp - Math.ceil(activeHostile.hp / 3) * deathclawRocketHits);
+      wepMsg = `ROCKET ${deathclawRocketHits}/3 — ${getRockets()} LEFT`;
+      if (deathclawRocketHits >= 3) killed = true;
+    } else {
+      activeHostile.curHp = 0;
+      killed = true;
+      wepMsg = `DIRECT HIT — ${getRockets()} ROCKETS LEFT`;
+    }
+
+  // ── AMMO GUNS ────────────────────────────────
+  } else if (stats.usesAmmo) {
+    if (getTotalAmmo() <= 0) {
+      document.getElementById('ho-status').textContent = 'OUT OF AMMO!';
+      return;
+    }
+    consumeAmmo(1);
+    activeHostile.curHp -= stats.damage;
+    wepMsg = `${weapon.name} — AMMO: ${getTotalAmmo()} LEFT`;
+    if (activeHostile.curHp <= 0) killed = true;
+
+  // ── MELEE / DURABILITY ───────────────────────
   } else {
-    wepMsg = `${weapon.name} — ${weapon.uses} USE${weapon.uses!==1?'S':''} LEFT`;
+    activeHostile.curHp -= stats.damage;
+    weapon.uses = (weapon.uses !== undefined ? weapon.uses : stats.uses) - 1;
+    if (weapon.uses <= 0) {
+      S.inventory.WEAPONS.splice(idx, 1);
+      wepMsg = `${weapon.name} DESTROYED`;
+      selectedWeaponIdx = null;
+    } else {
+      wepMsg = `${weapon.name} — ${weapon.uses} USE${weapon.uses!==1?'S':''} LEFT`;
+    }
+    if (activeHostile.curHp <= 0) killed = true;
   }
-  save();
 
-  const btn = document.getElementById('wbtn-'+idx);
-  if (btn) btn.classList.add('used');
+  save();
   healBeep();
 
-  if (activeHostile.curHp <= 0) {
+  if (killed) {
     activeHostile.curHp = 0;
     updateEnemyHpBar();
     document.getElementById('ho-status').textContent = `${activeHostile.name} NEUTRALIZED — ${wepMsg}`;
     resolveHostile('NEUTRALIZED');
   } else {
-    document.getElementById('ho-status').textContent =
-      `HIT FOR ${dmg} DMG — ${wepMsg}`;
+    updateEnemyHpBar();
+    document.getElementById('ho-status').textContent = `HIT — ${wepMsg}`;
     renderWeaponButtons();
   }
 }
@@ -1588,7 +1659,13 @@ function resolveHostile(outcome) {
   } else if (outcome === 'NEUTRALIZED') {
     modAP(-10);
     statMsg = 'NEUTRALIZED — AP -10';
-    toast(`${enemy.name} NEUTRALIZED`, '#5CF54A');
+    if (enemy.name.toUpperCase().includes('SUPER MUTANT')) {
+      S.rockets = (S.rockets || 0) + 1;
+      statMsg += ' — ROCKET FOUND (+1)';
+      toast(`SUPER MUTANT DOWN — ROCKET ACQUIRED`, '#5CF54A');
+    } else {
+      toast(`${enemy.name} NEUTRALIZED`, '#5CF54A');
+    }
   } else {
     // Took damage
     modHP(-enemy.playerDmg);
@@ -1955,6 +2032,7 @@ document.addEventListener('touchstart', startMusicOnce, false);
 document.addEventListener('click',      startMusicOnce, false);
 
 function init(){
+  if (S.rockets === undefined) S.rockets = 0;
   if (S.hp.cur >= S.hp.max) healLimbs(false);
   renderStats();
   renderInv();
